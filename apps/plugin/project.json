@@ -1,0 +1,40 @@
+{
+  "name": "plugin",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/plugin/src",
+  "projectType": "application",
+  "tags": ["scope:plugin"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "wxt build",
+        "cwd": "apps/plugin"
+      },
+      "dependsOn": ["^build"]
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "wxt dev",
+        "cwd": "apps/plugin"
+      },
+      "dependsOn": ["^build"]
+    },
+    "zip": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "wxt zip",
+        "cwd": "apps/plugin"
+      },
+      "dependsOn": ["build"]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest",
+        "cwd": "apps/plugin"
+      }
+    }
+  }
+}

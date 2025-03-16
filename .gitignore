@@ -48,3 +48,7 @@ vitest.config.*.timestamp*
 .cursorrules
 .cursor
 .cursor-*
+
+# Next.js
+.next
+out
