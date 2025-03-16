@@ -16,7 +16,7 @@
     "dev": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "wxt dev",
+        "command": "wxt",
         "cwd": "apps/plugin"
       },
       "dependsOn": ["^build"]

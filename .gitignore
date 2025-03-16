@@ -52,3 +52,10 @@ vitest.config.*.timestamp*
 # Next.js
 .next
 out
+
+# wxt
+# wxt 构建产物
+.wxt
+dist
+.env
+.output
