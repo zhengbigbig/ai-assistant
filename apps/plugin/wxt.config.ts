@@ -23,7 +23,11 @@ export default defineConfig({
       'contextMenus',
       'activeTab',
       'scripting',
-      'storage'
+      'storage',
+      'tabs'
+    ],
+    host_permissions: [
+      '<all_urls>'
     ],
     commands: {
       'toggle-sidepanel': {

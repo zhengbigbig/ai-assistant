@@ -13,6 +13,15 @@ import {
 } from '../Icons';
 import './styles.css';
 
+// 定义消息类型
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  // 可选的图片URL
+  imageUrl?: string;
+}
+
 /**
  * AI 助手侧边栏组件
  * 实现类似ChatGPT的侧边栏界面
@@ -22,11 +31,7 @@ const SidePanel: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
 
   // 聊天消息列表
-  const [messages, setMessages] = useState<Array<{
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-  }>>([
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
@@ -59,14 +64,38 @@ const SidePanel: React.FC = () => {
           return newValue;
         });
         sendResponse({ success: true });
-      } else if (message.action === 'addScreenshot' && message.text) {
-        // 添加截图文本到输入框
-        setInputValue((prev) => {
-          const newValue = prev
-            ? `${prev}\n\n[图片内容]\n${message.text}`
-            : `[图片内容]\n${message.text}`;
-          return newValue;
-        });
+      } else if (message.action === 'addScreenshot' && message.imageUrl) {
+        // 检查是否要添加到输入框
+        if (message.addToInput) {
+          // 将截图URL添加到输入框中或存储在状态中以便后续发送
+          setInputValue((prev) => {
+            const imageDescription = message.text || '截图';
+            // 这里只存储图片链接描述，实际发送消息时会将其转换为带图片的消息
+            const newValue = prev ? `${prev}\n\n[${imageDescription}](${message.imageUrl})` : `[${imageDescription}](${message.imageUrl})`;
+            return newValue;
+          });
+        } else {
+          // 原有行为：创建带有截图的消息
+          const screenshotMessage: Message = {
+            id: Date.now().toString(),
+            role: 'user',
+            content: message.text || '截图',
+            imageUrl: message.imageUrl
+          };
+
+          // 添加消息到列表
+          setMessages(prev => [...prev, screenshotMessage]);
+
+          // 模拟AI响应
+          setTimeout(() => {
+            const assistantMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: '我已接收到您的截图，有什么需要我帮助解析的吗？'
+            };
+            setMessages(prev => [...prev, assistantMessage]);
+          }, 1000);
+        }
         sendResponse({ success: true });
       }
       return true;
@@ -92,11 +121,30 @@ const SidePanel: React.FC = () => {
   const sendMessage = (content: string) => {
     if (!content.trim()) return;
 
+    // 检查消息中是否包含图片链接
+    const imgLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    let matches;
+    let processedContent = content;
+    const images: { description: string, url: string }[] = [];
+
+    // 提取所有图片链接
+    while ((matches = imgLinkRegex.exec(content)) !== null) {
+      const [fullMatch, description, url] = matches;
+      images.push({ description, url });
+      // 从文本中移除图片链接
+      processedContent = processedContent.replace(fullMatch, '');
+    }
+
+    // 清理处理后的内容
+    processedContent = processedContent.trim();
+
     // 创建用户消息
-    const userMessage = {
+    const userMessage: Message = {
       id: Date.now().toString(),
-      role: 'user' as const,
-      content,
+      role: 'user',
+      content: processedContent || (images.length > 0 ? images[0].description : ''),
+      // 如果有图片，添加第一张图片URL
+      imageUrl: images.length > 0 ? images[0].url : undefined
     };
 
     // 更新消息列表
@@ -107,10 +155,10 @@ const SidePanel: React.FC = () => {
 
     // 模拟 AI 回复（实际应用中应该调用 API）
     setTimeout(() => {
-      const assistantMessage = {
+      const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        role: 'assistant' as const,
-        content: `这是一个模拟回复。你发送的消息是：${content}`,
+        role: 'assistant',
+        content: `这是一个模拟回复。你发送的消息是：${processedContent}${images.length > 0 ? '，并附带了图片' : ''}`,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -138,7 +186,18 @@ const SidePanel: React.FC = () => {
 
   // 处理截图按钮点击
   const handleScreenshot = () => {
-    chrome.runtime.sendMessage({ action: 'captureScreenshot' });
+    console.log('Screenshot button clicked');
+    chrome.runtime.sendMessage({ action: 'captureScreenshot' }, (response) => {
+      console.log('captureScreenshot response:', response);
+    });
+  };
+
+  // 处理区域截图按钮点击
+  const handleAreaScreenshot = () => {
+    console.log('Area screenshot button clicked');
+    chrome.runtime.sendMessage({ action: 'startAreaScreenshot' }, (response) => {
+      console.log('startAreaScreenshot response:', response);
+    });
   };
 
   return (
@@ -149,6 +208,12 @@ const SidePanel: React.FC = () => {
           {messages.map((message) => (
             <div key={message.id} className={`message ${message.role}`}>
               <div className="message-content">
+                {/* 如果有图片，则显示图片 */}
+                {message.imageUrl && (
+                  <div className="message-image">
+                    <img src={message.imageUrl} alt="截图" className="screenshot-image" />
+                  </div>
+                )}
                 {message.content.split('\n').map((line, i) => (
                   <p key={i}>{line}</p>
                 ))}
@@ -220,9 +285,21 @@ const SidePanel: React.FC = () => {
         <button
           className="control-btn screenshot"
           onClick={handleScreenshot}
+          title="截取整个页面"
         >
           <ScreenshotIcon width={20} height={20} />
           <span className="sr-only">截图</span>
+        </button>
+        <button
+          className="control-btn area-screenshot"
+          onClick={handleAreaScreenshot}
+          title="截取选定区域"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
+            <path d="M9 9h6v6H9z" fill="currentColor" />
+          </svg>
+          <span className="sr-only">区域截图</span>
         </button>
         <button className="control-btn copy">
           <CopyIcon width={20} height={20} />
