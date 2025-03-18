@@ -1,14 +1,12 @@
-import React, { useState } from 'react';
-import styled from 'styled-components';
-import { Button, Dropdown, Space, Tooltip } from 'antd';
 import {
-  CommentOutlined,
-  SettingOutlined,
   SendOutlined,
-  StopOutlined,
-  DownOutlined
+  SettingOutlined,
+  StopOutlined
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
+import { Button, Dropdown, Space, Tooltip } from 'antd';
+import React from 'react';
+import styled from 'styled-components';
 
 export interface ChatControlOption {
   /**
