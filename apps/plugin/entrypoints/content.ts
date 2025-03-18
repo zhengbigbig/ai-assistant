@@ -164,6 +164,19 @@ function createScreenshotElements() {
   screenshotControls.style.display = 'none';
   screenshotControls.style.gap = '8px';
 
+  // 创建"确认"按钮
+  const confirmButton = document.createElement('button');
+  confirmButton.textContent = '确认';
+  confirmButton.style.backgroundColor = '#6e59f2';
+  confirmButton.style.color = 'white';
+  confirmButton.style.border = 'none';
+  confirmButton.style.borderRadius = '4px';
+  confirmButton.style.padding = '4px 12px';
+  confirmButton.style.fontSize = '12px';
+  confirmButton.style.cursor = 'pointer';
+  confirmButton.style.marginRight = '8px';
+  confirmButton.onclick = confirmAreaScreenshot;
+
   // 创建"取消"按钮
   const cancelButton = document.createElement('button');
   cancelButton.textContent = '取消';
@@ -177,6 +190,7 @@ function createScreenshotElements() {
   cancelButton.onclick = cancelAreaScreenshot;
 
   // 添加按钮到控制容器
+  screenshotControls.appendChild(confirmButton);
   screenshotControls.appendChild(cancelButton);
 
   // 将元素添加到页面
@@ -561,8 +575,18 @@ function cleanupScrollCapture(originalScrollPosition?: number) {
 
 // 取消区域截图
 function cancelAreaScreenshot() {
-  console.log('取消区域截图');
   cleanupScreenshotUI();
+}
+
+// 确认区域截图
+function confirmAreaScreenshot() {
+  // 隐藏控制按钮
+  if (screenshotControls) {
+    screenshotControls.style.display = 'none';
+  }
+
+  // 开始捕获扩展选择区域
+  captureExtendedArea();
 }
 
 // 清理截图界面 - 修改以确保清理所有事件监听器
@@ -1687,8 +1711,26 @@ function handleExtendedMouseUp(e: MouseEvent) {
   console.log('扩展选择框尺寸:', width, 'x', height);
   console.log('文档坐标范围:', extendedSelectionStartY, 'to', extendedSelectionEndY);
 
-  // 开始捕获扩展选择区域
-  captureExtendedArea();
+  // 显示控制按钮，而不是直接开始捕获
+  if (screenshotControls && selectionBox) {
+    // 在选区下方显示控制按钮
+    const selectionRect = selectionBox.getBoundingClientRect();
+    screenshotControls.style.top = `${selectionRect.bottom + 10}px`;
+    screenshotControls.style.left = `${selectionRect.left}px`;
+    screenshotControls.style.display = 'flex';
+
+    // 确保控制按钮在视口内
+    const controlsRect = screenshotControls.getBoundingClientRect();
+    if (controlsRect.right > window.innerWidth) {
+      screenshotControls.style.left = `${window.innerWidth - controlsRect.width - 10}px`;
+    }
+    if (controlsRect.bottom > window.innerHeight) {
+      screenshotControls.style.top = `${selectionRect.top - controlsRect.height - 10}px`;
+    }
+
+    // 显示确认提示
+    showDragCaptureToast('请确认是否截取选择区域');
+  }
 
   // 移除事件监听器
   document.removeEventListener('mousemove', handleExtendedMouseMove);
@@ -2118,6 +2160,9 @@ function handleKeyDown(e: KeyboardEvent) {
     // 取消扩展区域截图（如果正在进行）
     if (isExtendedSelecting) {
       cleanupExtendedScreenshot();
+    } else {
+      // 如果选区已完成但尚未确认，也需要清理
+      cleanupScreenshotUI();
     }
 
     // 移除键盘事件监听
