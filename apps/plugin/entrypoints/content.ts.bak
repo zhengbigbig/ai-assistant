@@ -22,6 +22,11 @@ export default defineContentScript({
         const selectedText = window.getSelection()?.toString() || '';
         sendResponse({ text: selectedText });
       } else if (message.action === 'startAreaScreenshot') {
+        // 直接开始区域截图模式
+        console.log('Starting area screenshot mode');
+        startAreaScreenshot();
+        sendResponse({ success: true });
+      } else if (message.action === 'startExtendedAreaScreenshot') {
         // 直接开始扩展区域截图模式，不再显示选择按钮
         console.log('Starting extended area screenshot mode');
         startExtendedAreaScreenshot();
@@ -185,10 +190,17 @@ function createScreenshotElements() {
   document.body.appendChild(screenshotControls);
 }
 
-// 开始区域截图 - 现在直接调用扩展区域截图
+// 开始区域截图
 function startAreaScreenshot() {
-  // 直接调用扩展区域截图
-  startExtendedAreaScreenshot();
+  // 显示选择框
+  if (screenshotOverlay) {
+    screenshotOverlay.style.display = 'block';
+  }
+
+  // 添加鼠标事件监听器
+  document.addEventListener('mousedown', handleMouseDown);
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
 }
 
 // 处理鼠标按下事件
@@ -262,6 +274,9 @@ function handleMouseUp(e: MouseEvent) {
   // 移除鼠标移动监听器
   document.removeEventListener('mousemove', handleMouseMove);
   document.removeEventListener('mouseup', handleMouseUp);
+
+  // 显示确认对话框
+  showConfirmationDialog();
 }
 
 // 更新选择框位置和大小
@@ -279,6 +294,78 @@ function updateSelectionBox() {
   selectionBox.style.height = `${height}px`;
 }
 
+// 显示确认对话框
+function showConfirmationDialog() {
+  // 创建对话框容器
+  const dialog = document.createElement('div');
+  dialog.id = 'ai-assistant-confirmation-dialog';
+  dialog.style.position = 'fixed';
+  dialog.style.top = '50%';
+  dialog.style.left = '50%';
+  dialog.style.transform = 'translate(-50%, -50%)';
+  dialog.style.zIndex = '2147483647';
+  dialog.style.backgroundColor = 'white';
+  dialog.style.borderRadius = '4px';
+  dialog.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
+  dialog.style.padding = '16px';
+  dialog.style.display = 'flex';
+  dialog.style.flexDirection = 'column';
+  dialog.style.alignItems = 'center';
+  dialog.style.gap = '16px';
+
+  // 添加文本
+  const text = document.createElement('div');
+  text.textContent = '确认要发送选定区域的截图吗？';
+  dialog.appendChild(text);
+
+  // 添加按钮容器
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.display = 'flex';
+  buttonContainer.style.gap = '8px';
+
+  // 添加"确认"按钮
+  const confirmButton = document.createElement('button');
+  confirmButton.textContent = '确认';
+  confirmButton.style.backgroundColor = '#6e59f2';
+  confirmButton.style.color = 'white';
+  confirmButton.style.border = 'none';
+  confirmButton.style.borderRadius = '4px';
+  confirmButton.style.padding = '4px 12px';
+  confirmButton.style.fontSize = '12px';
+  confirmButton.style.cursor = 'pointer';
+  confirmButton.onclick = () => {
+    // 关闭对话框
+    dialog.remove();
+    // 捕获选定区域
+    captureSelectedArea();
+  };
+  buttonContainer.appendChild(confirmButton);
+
+  // 添加"取消"按钮
+  const cancelButton = document.createElement('button');
+  cancelButton.textContent = '取消';
+  cancelButton.style.backgroundColor = '#f0f0f0';
+  cancelButton.style.color = '#333';
+  cancelButton.style.border = 'none';
+  cancelButton.style.borderRadius = '4px';
+  cancelButton.style.padding = '4px 12px';
+  cancelButton.style.fontSize = '12px';
+  cancelButton.style.cursor = 'pointer';
+  cancelButton.onclick = () => {
+    // 关闭对话框
+    dialog.remove();
+    // 取消区域截图
+    cancelAreaScreenshot();
+  };
+  buttonContainer.appendChild(cancelButton);
+
+  // 添加按钮容器到对话框
+  dialog.appendChild(buttonContainer);
+
+  // 添加对话框到页面
+  document.body.appendChild(dialog);
+}
+
 // 捕获选定区域
 function captureSelectedArea() {
   if (!selectionBox) return;
@@ -289,28 +376,36 @@ function captureSelectedArea() {
   chrome.runtime.sendMessage({ action: 'getTabId' }, (response) => {
     if (response && response.tabId) {
       // 获取截图
-      chrome.tabs.captureVisibleTab({ format: 'png' }, (dataUrl) => {
-        // 裁剪指定区域
-        cropImage(dataUrl, rect.left, rect.top, rect.width, rect.height).then((croppedDataUrl) => {
-          // 提取文本（实际应用中可使用OCR API）
-          const exampleText = '这是一张选定区域的截图。';
+      chrome.runtime.sendMessage({ action: 'captureScreenshot' }, () => {
+        // 等待截图完成后，从background接收消息
+        chrome.runtime.onMessage.addListener(function listener(message) {
+          if (message.action === 'screenshotCaptured' && message.imageUrl) {
+            // 移除监听器，避免重复处理
+            chrome.runtime.onMessage.removeListener(listener);
 
-          // 发送到侧边栏
-          chrome.runtime.sendMessage({
-            action: 'openSidePanel'
-          }, () => {
-            setTimeout(() => {
+            // 裁剪指定区域
+            cropImage(message.imageUrl, rect.left, rect.top, rect.width, rect.height).then((croppedDataUrl) => {
+              // 提取文本（实际应用中可使用OCR API）
+              const exampleText = '这是一张选定区域的截图。';
+
+              // 发送到侧边栏
               chrome.runtime.sendMessage({
-                action: 'addScreenshot',
-                imageUrl: croppedDataUrl,
-                text: exampleText,
-                addToInput: false // 默认不添加到输入框
+                action: 'openSidePanel'
+              }, () => {
+                setTimeout(() => {
+                  chrome.runtime.sendMessage({
+                    action: 'addScreenshot',
+                    imageUrl: croppedDataUrl,
+                    text: exampleText,
+                    addToInput: false // 默认不添加到输入框
+                  });
+                }, 500);
               });
-            }, 500);
-          });
 
-          // 清理截图界面
-          cleanupScreenshotUI();
+              // 清理截图界面
+              cleanupScreenshotUI();
+            });
+          }
         });
       });
     } else {
@@ -426,14 +521,14 @@ function requestCaptureAndScroll(originalScrollPosition: number) {
     // 滚动到下一个位置
     window.scrollTo({
       top: nextScrollY,
-      behavior: 'instant' // 使用即时滚动而不是平滑滚动
+      behavior: 'smooth' // 使用即时滚动而不是平滑滚动
     });
 
     // 更新当前滚动位置
     currentScrollPosition = nextScrollY;
 
     // 等待一段时间让页面稳定再捕获下一屏
-    setTimeout(() => requestCaptureAndScroll(originalScrollPosition), 300);
+    setTimeout(() => requestCaptureAndScroll(originalScrollPosition), 450);
   });
 }
 
@@ -503,14 +598,16 @@ function finishScrollCapture(originalScrollPosition: number) {
       chrome.runtime.sendMessage({
         action: 'openSidePanel'
       }, () => {
-        setTimeout(() => {
-          chrome.runtime.sendMessage({
-            action: 'addScreenshot',
-            imageUrl: mergedImageUrl,
-            text: '滚动页面截图',
-            addToInput: true // 添加到输入框
-          });
-        }, 500);
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            chrome.runtime.sendMessage({
+              action: 'addScreenshot',
+              imageUrl: mergedImageUrl,
+              text: '滚动页面截图',
+              addToInput: true // 添加到输入框
+            });
+          }, 500);
+        });
       });
 
     } catch (error) {
@@ -535,12 +632,12 @@ function cleanupScrollCapture(originalScrollPosition?: number) {
   if (originalScrollPosition !== undefined) {
     window.scrollTo({
       top: originalScrollPosition,
-      behavior: 'instant'
+      behavior: 'smooth'
     });
   } else {
     window.scrollTo({
       top: 0,
-      behavior: 'instant'
+      behavior: 'smooth'
     });
   }
 
@@ -703,12 +800,14 @@ function showFloatingToolbar(x: number, y: number, selectedText: string) {
       action: 'openSidePanel'
     }, () => {
       // 然后发送选中的文本
-      setTimeout(() => {
-        chrome.runtime.sendMessage({
-          action: 'addSelectedText',
-          text: selectedText
-        });
-      }, 500); // 给侧边栏打开留出时间
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          chrome.runtime.sendMessage({
+            action: 'addSelectedText',
+            text: selectedText
+          });
+        }, 500); // 给侧边栏打开留出时间
+      });
     });
 
     // 隐藏工具栏
@@ -1412,16 +1511,18 @@ function sendDragScrollResult(imageUrl: string) {
   chrome.runtime.sendMessage({
     action: 'openSidePanel'
   }, () => {
-    setTimeout(() => {
-      chrome.runtime.sendMessage({
-        action: 'addScreenshot',
-        imageUrl: imageUrl,
-        text: '拖拽滚动截图',
-        addToInput: true
-      }, (response) => {
-        console.log('截图发送结果:', response);
-      });
-    }, 500);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        chrome.runtime.sendMessage({
+          action: 'addScreenshot',
+          imageUrl: imageUrl,
+          text: '拖拽滚动截图',
+          addToInput: true
+        }, (response) => {
+          console.log('截图发送结果:', response);
+        });
+      }, 500);
+    });
   });
 
   // 清理
@@ -1496,11 +1597,13 @@ function showDragCaptureToast(message: string) {
   document.body.appendChild(toast);
 
   // 3秒后自动消失
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transition = 'opacity 0.5s ease';
-    setTimeout(() => toast.remove(), 500);
-  }, 3000);
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.5s ease';
+      setTimeout(() => toast.remove(), 500);
+    }, 3000);
+  });
 }
 
 // 开始扩展区域截图
@@ -1687,13 +1790,11 @@ function handleExtendedMouseUp(e: MouseEvent) {
   console.log('扩展选择框尺寸:', width, 'x', height);
   console.log('文档坐标范围:', extendedSelectionStartY, 'to', extendedSelectionEndY);
 
-  // 开始捕获扩展选择区域
-  captureExtendedArea();
-
-  // 移除事件监听器
-  document.removeEventListener('mousemove', handleExtendedMouseMove);
-  document.removeEventListener('mouseup', handleExtendedMouseUp);
+  // 显示确认对话框
+  showConfirmationDialog();
 }
+
+// 取消区域截图
 
 // 捕获扩展选择区域
 function captureExtendedArea() {
@@ -1762,14 +1863,16 @@ function captureExtendedAreaProcess(
   // 先滚动到区域起始位置
   window.scrollTo({
     top: startScrollY,
-    behavior: 'instant'
+    behavior: 'smooth'
   });
 
   // 等待滚动完成
-  setTimeout(() => {
-    // 收集所有需要的截图
-    collectExtendedAreaImages(canvas, ctx, startScrollY, endScrollY, left, width);
-  }, 300);
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      // 收集所有需要的截图
+      collectExtendedAreaImages(canvas, ctx, startScrollY, endScrollY, left, width);
+    }, 300);
+  });
 }
 
 // 收集扩展区域的图像
@@ -1828,13 +1931,13 @@ function collectExtendedAreaImages(
     // 滚动到下一个位置
     window.scrollTo({
       top: nextPos,
-      behavior: 'instant'
+      behavior: 'smooth' // 使用平滑滚动提高流畅度
     });
 
     // 等待滚动完成并稳定
-    setTimeout(() => {
-      collectExtendedAreaImages(canvas, ctx, startPos, endPos, left, width, images);
-    }, 300);
+    requestAnimationFrame(() => { setTimeout(() => {
+      requestAnimationFrame(() => { setTimeout(() => { collectExtendedAreaImages(canvas, ctx, startPos, endPos, left, width, images); }, 50); });
+    }, 450); // 稍微延长等待时间，适应平滑滚动
   });
 }
 
@@ -1987,14 +2090,16 @@ function finishExtendedAreaCapture(
       chrome.runtime.sendMessage({
         action: 'openSidePanel'
       }, () => {
-        setTimeout(() => {
-          chrome.runtime.sendMessage({
-            action: 'addScreenshot',
-            imageUrl: finalImageUrl,
-            text: '扩展区域截图',
-            addToInput: true
-          });
-        }, 500);
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            chrome.runtime.sendMessage({
+              action: 'addScreenshot',
+              imageUrl: finalImageUrl,
+              text: '扩展区域截图',
+              addToInput: true
+            });
+          }, 500);
+        });
       });
 
       // 显示成功提示
@@ -2091,7 +2196,7 @@ function cleanupExtendedScreenshot() {
   // 恢复滚动到合理位置
   window.scrollTo({
     top: Math.min(extendedSelectionStartY, extendedSelectionEndY),
-    behavior: 'instant'
+    behavior: 'smooth'
   });
 
   // 隐藏进度指示器
@@ -2118,6 +2223,16 @@ function handleKeyDown(e: KeyboardEvent) {
     // 取消扩展区域截图（如果正在进行）
     if (isExtendedSelecting) {
       cleanupExtendedScreenshot();
+    }
+
+    // 取消区域选择截图（如果正在进行）
+    if (isSelecting) {
+      cancelAreaScreenshot();
+    }
+
+    // 取消拖拽滚动截图（如果正在进行）
+    if (dragScrollCapturing) {
+      cleanupUserDragScrollCapture();
     }
 
     // 移除键盘事件监听
