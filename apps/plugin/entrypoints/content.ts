@@ -111,6 +111,8 @@ function createScreenshotElements() {
   selectionBox.style.backgroundColor = 'rgba(110, 89, 242, 0.1)';
   selectionBox.style.display = 'none';
   selectionBox.style.zIndex = '2147483647';
+  // 添加阴影以增强边缘可见性
+  selectionBox.style.boxShadow = '0 0 0 1px rgba(255, 255, 255, 0.3)';
 
   // 创建滚动捕获进度指示器
   scrollCaptureProgress = document.createElement('div');
@@ -201,12 +203,46 @@ function createScreenshotElements() {
 
 // 开始区域截图 - 现在直接调用扩展区域截图
 function startAreaScreenshot() {
-  // 直接调用扩展区域截图
-  startExtendedAreaScreenshot();
+  if (!screenshotOverlay || !selectionBox || !screenshotControls) {
+    createScreenshotElements();
+  }
+
+  // 清理之前的选择框
+  if (selectionBox) {
+    selectionBox.style.display = 'none';
+  }
+
+  if (screenshotControls) {
+    screenshotControls.style.display = 'none';
+  }
+
+  // 禁用页面文字选择
+  document.body.style.userSelect = 'none';
+  document.body.style.webkitUserSelect = 'none';
+  // 使用类型断言处理其他浏览器前缀
+  (document.body.style as any)['msUserSelect'] = 'none';
+  (document.body.style as any)['mozUserSelect'] = 'none';
+
+  // 显示覆盖层
+  if (screenshotOverlay) {
+    screenshotOverlay.style.display = 'block';
+
+    // 添加鼠标事件监听器
+    screenshotOverlay.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('keydown', handleKeyDown);
+
+    // 防止滚动
+    document.body.style.overflow = 'hidden';
+  }
 }
 
 // 处理鼠标按下事件
 function handleMouseDown(e: MouseEvent) {
+  // 阻止默认行为以防止文本被选中
+  e.preventDefault();
+
   console.log('选区开始:', e.clientX, e.clientY);
   isSelecting = true;
   startX = e.clientX;
@@ -225,8 +261,12 @@ function handleMouseDown(e: MouseEvent) {
 function handleMouseMove(e: MouseEvent) {
   if (!isSelecting) return;
 
-  endX = e.clientX;
-  endY = e.clientY;
+  // 阻止默认行为以防止文本被选中
+  e.preventDefault();
+
+  // 更新鼠标当前位置（限制在窗口边界内）
+  endX = Math.max(0, Math.min(e.clientX, window.innerWidth - 1));
+  endY = Math.max(0, Math.min(e.clientY, window.innerHeight - 1));
 
   updateSelectionBox();
 }
@@ -263,9 +303,21 @@ function handleMouseUp(e: MouseEvent) {
 
     // 确保控制按钮在视口内
     const controlsRect = screenshotControls.getBoundingClientRect();
-    if (controlsRect.bottom > window.innerHeight) {
+
+    // 检查底部空间是否足够
+    const bottomSpace = window.innerHeight - selectionRect.bottom;
+    const topSpace = selectionRect.top;
+
+    // 没有足够的底部空间，也没有足够的顶部空间时，放在视口中心
+    if (controlsRect.bottom > window.innerHeight && topSpace < controlsRect.height) {
+      // 上下都没有足够空间，放在视口中心
+      screenshotControls.style.top = `${Math.max(10, (window.innerHeight - controlsRect.height) / 2)}px`;
+      screenshotControls.style.left = `${Math.max(10, (window.innerWidth - controlsRect.width) / 2)}px`;
+    } else if (controlsRect.bottom > window.innerHeight) {
+      // 底部空间不足，但顶部有空间，放在选区上方
       screenshotControls.style.top = `${selectionRect.top - controlsRect.height - 10}px`;
     }
+
     if (controlsRect.right > window.innerWidth) {
       screenshotControls.style.left = `${window.innerWidth - controlsRect.width - 10}px`;
     }
@@ -282,22 +334,46 @@ function handleMouseUp(e: MouseEvent) {
 function updateSelectionBox() {
   if (!selectionBox) return;
 
+  // 计算框选的左上角坐标和宽高
   const left = Math.min(startX, endX);
   const top = Math.min(startY, endY);
   const width = Math.abs(endX - startX);
   const height = Math.abs(endY - startY);
 
+  // 边框宽度
+  const borderWidth = 2;
+  // 额外边距，确保在高DPR屏幕上也有足够空间
+  const safeMargin = 4;
+
+  // 确保选区不超出视口右边界，保留边框宽度+安全边距
+  const adjustedWidth = Math.min(width, window.innerWidth - left - (borderWidth + safeMargin));
+
+  // 更新选区样式
   selectionBox.style.left = `${left}px`;
   selectionBox.style.top = `${top}px`;
-  selectionBox.style.width = `${width}px`;
+  selectionBox.style.width = `${adjustedWidth}px`;
   selectionBox.style.height = `${height}px`;
+
+  // 当接近边缘时更改边框样式以增强可见性
+  if (left + adjustedWidth > window.innerWidth - (borderWidth + safeMargin)) {
+    selectionBox.style.borderRight = `${borderWidth}px solid rgba(110, 89, 242, 0.9)`;
+  } else {
+    selectionBox.style.border = `${borderWidth}px dashed #6e59f2`;
+  }
 }
 
 // 捕获选定区域
 function captureSelectedArea() {
   if (!selectionBox) return;
 
+  // 边框宽度和安全边距
+  const borderWidth = 2;
+  const safeMargin = 4;
+
+  // 获取选区位置和大小，确保不超出边界
   const rect = selectionBox.getBoundingClientRect();
+  // 确保宽度不超出视口右边界
+  const adjustedWidth = Math.min(rect.width, window.innerWidth - rect.left - (borderWidth + safeMargin));
 
   // 使用 chrome.tabs.captureVisibleTab 捕获整个可见页面
   chrome.runtime.sendMessage({ action: 'getTabId' }, (response) => {
@@ -305,7 +381,7 @@ function captureSelectedArea() {
       // 获取截图
       chrome.tabs.captureVisibleTab({ format: 'png' }, (dataUrl) => {
         // 裁剪指定区域
-        cropImage(dataUrl, rect.left, rect.top, rect.width, rect.height).then((croppedDataUrl) => {
+        cropImage(dataUrl, rect.left, rect.top, adjustedWidth, rect.height).then((croppedDataUrl) => {
           // 提取文本（实际应用中可使用OCR API）
           const exampleText = '这是一张选定区域的截图。';
 
@@ -601,6 +677,7 @@ function cleanupScreenshotUI() {
   if (screenshotOverlay) {
     screenshotOverlay.style.display = 'none';
     screenshotOverlay.removeEventListener('mousedown', handleExtendedMouseDown);
+    screenshotOverlay.removeEventListener('mousedown', handleMouseDown);
   }
 
   if (selectionBox) {
@@ -614,9 +691,17 @@ function cleanupScreenshotUI() {
   // 移除所有事件监听器
   document.removeEventListener('mousemove', handleExtendedMouseMove);
   document.removeEventListener('mouseup', handleExtendedMouseUp);
+  document.removeEventListener('mousemove', handleMouseMove);
+  document.removeEventListener('mouseup', handleMouseUp);
   document.removeEventListener('keydown', handleKeyDown);
 
   document.body.style.overflow = '';
+
+  // 恢复文本选择功能
+  document.body.style.userSelect = '';
+  document.body.style.webkitUserSelect = '';
+  (document.body.style as any)['msUserSelect'] = '';
+  (document.body.style as any)['mozUserSelect'] = '';
 }
 
 // 裁剪图像 - 保留用于可能的后续处理
@@ -1294,8 +1379,12 @@ async function processFullPageDragCapture(images: Array<{dataUrl: string, scroll
           throw new Error('没有有效的图片可以处理');
         }
 
-        // 确定canvas大小 - 宽度使用第一张图片的宽度
-        const width = validImagePairs[0].img.width;
+        // 边框宽度和安全边距
+        const borderWidth = 2;
+        const safeMargin = 4;
+
+        // 确定canvas宽度 - 使用第一张图片的宽度，但确保不超过视口宽度减去安全边距
+        const width = Math.min(validImagePairs[0].img.width, window.innerWidth - safeMargin);
 
         // 计算高度 - 使用最后一张图片的底部减去第一张图片的顶部
         const firstImageScrollY = validImagePairs[0].data.scrollY;
@@ -1318,7 +1407,10 @@ async function processFullPageDragCapture(images: Array<{dataUrl: string, scroll
           const { img, data } = pair;
           const y = data.scrollY - firstImageScrollY;
           console.log(`绘制图片 ${index}，位置: ${y}`);
-          ctx.drawImage(img, 0, y);
+
+          // 确保绘制的图像宽度不超过canvas宽度
+          const drawWidth = Math.min(img.width, width);
+          ctx.drawImage(img, 0, 0, drawWidth, img.height, 0, y, drawWidth, img.height);
         });
 
         // 返回合并后的图像
@@ -1369,8 +1461,12 @@ async function processSelectedAreaDragCapture(images: Array<{dataUrl: string, sc
           throw new Error('没有有效的图片可以处理');
         }
 
-        // 确定选区宽度
-        const width = initialRect.width;
+        // 边框宽度和安全边距
+        const borderWidth = 2;
+        const safeMargin = 4;
+
+        // 确保选区宽度不超出视口边界
+        const width = Math.min(initialRect.width, window.innerWidth - initialRect.left - (borderWidth + safeMargin));
 
         // 计算高度 - 使用最后一张图片的底部减去第一张图片的顶部
         const firstImageScrollY = validImagePairs[0].data.scrollY;
@@ -1542,6 +1638,13 @@ function startExtendedAreaScreenshot() {
     screenshotControls.style.display = 'none';
   }
 
+  // 禁用页面文字选择
+  document.body.style.userSelect = 'none';
+  document.body.style.webkitUserSelect = 'none';
+  // 使用类型断言处理其他浏览器前缀
+  (document.body.style as any)['msUserSelect'] = 'none';
+  (document.body.style as any)['mozUserSelect'] = 'none';
+
   // 显示覆盖层
   if (screenshotOverlay) {
     screenshotOverlay.style.display = 'block';
@@ -1565,6 +1668,9 @@ function startExtendedAreaScreenshot() {
 
 // 处理扩展鼠标按下事件
 function handleExtendedMouseDown(e: MouseEvent) {
+  // 阻止默认行为以防止文本被选中
+  e.preventDefault();
+
   console.log('扩展选区开始:', e.clientX, e.clientY);
   isExtendedSelecting = true;
   startX = e.clientX;
@@ -1591,10 +1697,13 @@ function handleExtendedMouseDown(e: MouseEvent) {
 function handleExtendedMouseMove(e: MouseEvent) {
   if (!isExtendedSelecting) return;
 
-  // 更新鼠标当前位置
-  endX = e.clientX;
-  endY = e.clientY;
-  extendedSelectionEndY = e.clientY + window.scrollY;
+  // 阻止默认行为以防止文本被选中
+  e.preventDefault();
+
+  // 更新鼠标当前位置（限制在窗口边界内）
+  endX = Math.max(0, Math.min(e.clientX, window.innerWidth - 1));
+  endY = Math.max(0, Math.min(e.clientY, window.innerHeight - 1));
+  extendedSelectionEndY = endY + window.scrollY;
 
   // 检查是否需要自动滚动
   checkAutoScroll(e);
@@ -1678,11 +1787,26 @@ function updateExtendedSelectionBox() {
   const width = Math.abs(endX - startX);
   const height = Math.abs(viewportEndY - viewportStartY);
 
+  // 边框宽度
+  const borderWidth = 2;
+  // 额外边距，确保在高DPR屏幕上也有足够空间
+  const safeMargin = 4;
+
+  // 确保选区不超出视口右边界，保留边框宽度+安全边距
+  const adjustedWidth = Math.min(width, window.innerWidth - left - (borderWidth + safeMargin));
+
   // 更新选择框样式
   selectionBox.style.left = `${left}px`;
   selectionBox.style.top = `${top}px`;
-  selectionBox.style.width = `${width}px`;
+  selectionBox.style.width = `${adjustedWidth}px`;
   selectionBox.style.height = `${height}px`;
+
+  // 当接近边缘时更改边框样式以增强可见性
+  if (left + adjustedWidth > window.innerWidth - (borderWidth + safeMargin)) {
+    selectionBox.style.borderRight = `${borderWidth}px solid rgba(110, 89, 242, 0.9)`;
+  } else {
+    selectionBox.style.border = `${borderWidth}px dashed #6e59f2`;
+  }
 }
 
 // 处理扩展鼠标释放事件
@@ -1721,15 +1845,24 @@ function handleExtendedMouseUp(e: MouseEvent) {
 
     // 确保控制按钮在视口内
     const controlsRect = screenshotControls.getBoundingClientRect();
-    if (controlsRect.right > window.innerWidth) {
-      screenshotControls.style.left = `${window.innerWidth - controlsRect.width - 10}px`;
-    }
-    if (controlsRect.bottom > window.innerHeight) {
+
+    // 检查底部空间是否足够
+    const bottomSpace = window.innerHeight - selectionRect.bottom;
+    const topSpace = selectionRect.top;
+
+    // 没有足够的底部空间，也没有足够的顶部空间时，放在视口中心
+    if (controlsRect.bottom > window.innerHeight && topSpace < controlsRect.height) {
+      // 上下都没有足够空间，放在视口中心
+      screenshotControls.style.top = `${Math.max(10, (window.innerHeight - controlsRect.height) / 2)}px`;
+      screenshotControls.style.left = `${Math.max(10, (window.innerWidth - controlsRect.width) / 2)}px`;
+    } else if (controlsRect.bottom > window.innerHeight) {
+      // 底部空间不足，但顶部有空间，放在选区上方
       screenshotControls.style.top = `${selectionRect.top - controlsRect.height - 10}px`;
     }
 
-    // 显示确认提示
-    showDragCaptureToast('请确认是否截取选择区域');
+    if (controlsRect.right > window.innerWidth) {
+      screenshotControls.style.left = `${window.innerWidth - controlsRect.width - 10}px`;
+    }
   }
 
   // 移除事件监听器
@@ -1768,10 +1901,17 @@ function captureExtendedArea() {
   const endScrollY = Math.max(extendedSelectionStartY, extendedSelectionEndY);
   const left = Math.min(startX, endX);
 
+  // 边框宽度和安全边距
+  const borderWidth = 2;
+  const safeMargin = 4;
+
+  // 确保宽度不超出视口右边界
+  const adjustedWidth = Math.min(width, window.innerWidth - left - (borderWidth + safeMargin));
+
   // 创建画布
   const canvas = document.createElement('canvas');
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = width * dpr;
+  canvas.width = adjustedWidth * dpr;
   canvas.height = height * dpr;
   const ctx = canvas.getContext('2d');
 
@@ -1786,7 +1926,7 @@ function captureExtendedArea() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // 开始捕获过程
-  captureExtendedAreaProcess(canvas, ctx, startScrollY, endScrollY, left, width);
+  captureExtendedAreaProcess(canvas, ctx, startScrollY, endScrollY, left, adjustedWidth);
 }
 
 // 扩展区域捕获过程
@@ -1969,6 +2109,20 @@ function finishExtendedAreaCapture(
       // 获取设备像素比
       const dpr = window.devicePixelRatio || 1;
 
+      // 边框宽度和安全边距
+      const borderWidth = 2;
+      const safeMargin = 4;
+
+      // 再次确保宽度不超出边界（防止浏览器窗口大小变化）
+      const adjustedWidth = Math.min(width, window.innerWidth - left - (borderWidth + safeMargin));
+      if (adjustedWidth !== width) {
+        // 如果宽度需要调整，重新设置canvas宽度
+        canvas.width = adjustedWidth * dpr;
+        // 重新填充白色背景
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
       // 筛选出第一张和最后一张图像以确定裁剪区域
       const firstImage = loadedImages.sort((a, b) => a.scrollY - b.scrollY)[0];
       const lastImage = loadedImages.sort((a, b) => b.scrollY - a.scrollY)[0];
@@ -1988,7 +2142,7 @@ function finishExtendedAreaCapture(
       for (const {img, scrollY} of loadedImages) {
         // 计算图像在Canvas中的位置
         const sourceX = left * dpr;
-        const sourceWidth = width * dpr;
+        const sourceWidth = adjustedWidth * dpr; // 使用调整后的宽度
         // 调整源图像的Y坐标，跳过浏览器工具栏
         const sourceY = toolbarHeight;
         const adjustedHeight = img.height - toolbarHeight;
