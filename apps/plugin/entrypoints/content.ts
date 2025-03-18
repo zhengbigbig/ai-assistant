@@ -529,7 +529,7 @@ function requestCaptureAndScroll(originalScrollPosition: number) {
     currentScrollPosition = nextScrollY;
 
     // 等待一段时间让页面稳定再捕获下一屏
-    setTimeout(() => requestCaptureAndScroll(originalScrollPosition), 600);
+    setTimeout(() => requestCaptureAndScroll(originalScrollPosition), 1000);
   });
 }
 
@@ -2064,6 +2064,12 @@ function hideUIElementsForCapture() {
     selectionBox.style.display = 'none';
   }
 
+  // 隐藏控制按钮
+  if (screenshotControls) {
+    screenshotControls.dataset.prevDisplay = screenshotControls.style.display;
+    screenshotControls.style.display = 'none';
+  }
+
   // 隐藏其他可能的UI元素
   const toast = document.getElementById('ai-assistant-drag-capture-toast');
   if (toast) {
@@ -2077,6 +2083,37 @@ function hideUIElementsForCapture() {
     preventInteractionOverlay.dataset.prevDisplay = preventInteractionOverlay.style.display;
     preventInteractionOverlay.style.display = 'none';
   }
+
+  // 隐藏拖拽处理器
+  if (dragScrollHandler) {
+    dragScrollHandler.dataset.prevDisplay = dragScrollHandler.style.display;
+    dragScrollHandler.style.display = 'none';
+  }
+
+  // 隐藏拖拽提示
+  const dragHint = document.getElementById('ai-assistant-drag-hint');
+  if (dragHint) {
+    dragHint.dataset.prevDisplay = dragHint.style.display;
+    dragHint.style.display = 'none';
+  }
+
+  // 隐藏拖拽状态指示器
+  const dragStatus = document.getElementById('ai-assistant-drag-status');
+  if (dragStatus) {
+    dragStatus.dataset.prevDisplay = dragStatus.style.display;
+    dragStatus.style.display = 'none';
+  }
+
+  // 隐藏所有截图相关的自定义元素
+  const allAssistantElements = document.querySelectorAll('[id^="ai-assistant-"]');
+  allAssistantElements.forEach(element => {
+    const htmlElement = element as HTMLElement;
+    // 如果元素还没有被处理过，则隐藏它
+    if (htmlElement && !htmlElement.dataset.prevDisplay && htmlElement.style.display !== 'none') {
+      htmlElement.dataset.prevDisplay = htmlElement.style.display || 'block';
+      htmlElement.style.display = 'none';
+    }
+  });
 }
 
 // 恢复UI元素显示
@@ -2084,24 +2121,64 @@ function restoreUIElementsAfterCapture() {
   // 恢复进度指示器
   if (scrollCaptureProgress && scrollCaptureProgress.dataset.prevDisplay) {
     scrollCaptureProgress.style.display = scrollCaptureProgress.dataset.prevDisplay;
+    delete scrollCaptureProgress.dataset.prevDisplay;
   }
 
   // 恢复选择框
   if (selectionBox && selectionBox.dataset.prevDisplay) {
     selectionBox.style.display = selectionBox.dataset.prevDisplay;
+    delete selectionBox.dataset.prevDisplay;
+  }
+
+  // 恢复控制按钮
+  if (screenshotControls && screenshotControls.dataset.prevDisplay) {
+    screenshotControls.style.display = screenshotControls.dataset.prevDisplay;
+    delete screenshotControls.dataset.prevDisplay;
   }
 
   // 恢复其他可能的UI元素
   const toast = document.getElementById('ai-assistant-drag-capture-toast');
   if (toast && toast.dataset.prevDisplay) {
     toast.style.display = toast.dataset.prevDisplay;
+    delete toast.dataset.prevDisplay;
   }
 
   // 恢复防止交互层
   const preventInteractionOverlay = document.getElementById('ai-assistant-prevent-interaction');
   if (preventInteractionOverlay && preventInteractionOverlay.dataset.prevDisplay) {
     preventInteractionOverlay.style.display = preventInteractionOverlay.dataset.prevDisplay;
+    delete preventInteractionOverlay.dataset.prevDisplay;
   }
+
+  // 恢复拖拽处理器
+  if (dragScrollHandler && dragScrollHandler.dataset.prevDisplay) {
+    dragScrollHandler.style.display = dragScrollHandler.dataset.prevDisplay;
+    delete dragScrollHandler.dataset.prevDisplay;
+  }
+
+  // 恢复拖拽提示
+  const dragHint = document.getElementById('ai-assistant-drag-hint');
+  if (dragHint && dragHint.dataset.prevDisplay) {
+    dragHint.style.display = dragHint.dataset.prevDisplay;
+    delete dragHint.dataset.prevDisplay;
+  }
+
+  // 恢复拖拽状态指示器
+  const dragStatus = document.getElementById('ai-assistant-drag-status');
+  if (dragStatus && dragStatus.dataset.prevDisplay) {
+    dragStatus.style.display = dragStatus.dataset.prevDisplay;
+    delete dragStatus.dataset.prevDisplay;
+  }
+
+  // 恢复所有被隐藏的截图相关元素
+  const allAssistantElements = document.querySelectorAll('[id^="ai-assistant-"]');
+  allAssistantElements.forEach(element => {
+    const htmlElement = element as HTMLElement;
+    if (htmlElement && htmlElement.dataset.prevDisplay) {
+      htmlElement.style.display = htmlElement.dataset.prevDisplay;
+      delete htmlElement.dataset.prevDisplay;
+    }
+  });
 }
 
 // 完成扩展区域捕获
