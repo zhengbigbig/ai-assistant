@@ -529,7 +529,7 @@ function requestCaptureAndScroll(originalScrollPosition: number) {
     currentScrollPosition = nextScrollY;
 
     // 等待一段时间让页面稳定再捕获下一屏
-    setTimeout(() => requestCaptureAndScroll(originalScrollPosition), 300);
+    setTimeout(() => requestCaptureAndScroll(originalScrollPosition), 600);
   });
 }
 
