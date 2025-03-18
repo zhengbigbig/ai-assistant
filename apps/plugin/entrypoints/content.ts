@@ -243,6 +243,12 @@ function handleMouseDown(e: MouseEvent) {
   // 阻止默认行为以防止文本被选中
   e.preventDefault();
 
+  // 移除屏幕上的任何Toast提示，避免影响截图
+  const toast = document.getElementById('ai-assistant-drag-capture-toast');
+  if (toast) {
+    toast.remove();
+  }
+
   console.log('选区开始:', e.clientX, e.clientY);
   isSelecting = true;
   startX = e.clientX;
@@ -1003,37 +1009,49 @@ function createDragScrollHandler() {
 
 // 处理拖拽开始 - 鼠标
 function handleDragScrollStart(e: MouseEvent) {
-  console.log('拖拽开始...');
-  if (!dragScrollCapturing) return;
-
-  // 防止默认行为和冒泡
+  // 防止文本选择
   e.preventDefault();
-  e.stopPropagation();
 
-  // 记录开始位置
+  // 移除屏幕上的任何Toast提示，避免影响截图
+  const toast = document.getElementById('ai-assistant-drag-capture-toast');
+  if (toast) {
+    toast.remove();
+  }
+
+  console.log('开始拖拽滚动', e.clientX, e.clientY);
   isDragging = true;
   mouseStartY = e.clientY;
   mouseCurrentY = e.clientY;
   scrollStartY = window.scrollY;
   dragScrollStartTime = Date.now();
-  dragScrollDistance = 0;
 
-  // 更改鼠标样式
-  if (dragScrollHandler) {
-    dragScrollHandler.style.cursor = 'grabbing';
+  // 显示提示
+  showDragCaptureToast('向下拖动来滚动页面，释放鼠标停止截图');
 
-    // 更新状态指示器
-    const statusIndicator = document.getElementById('ai-assistant-drag-status');
-    if (statusIndicator) {
-      statusIndicator.textContent = '✊ 正在拖拽...';
+  // 设置进度指示器
+  if (scrollCaptureProgress) {
+    scrollCaptureProgress.style.display = 'flex';
+    const progressText = document.getElementById('ai-assistant-scroll-progress-text');
+    if (progressText) {
+      progressText.textContent = '拖拽滚动截图中...';
     }
   }
 
-  // 添加鼠标移动和释放事件
+  // 设置状态
+  dragScrollCapturing = true;
+  dragScrollDistance = 0;
+  dragScrollLastCaptureY = window.scrollY;
+  dragScrollLastCaptureTime = Date.now();
+  dragScrollImages = [];
+
+  // 存储初始选框位置
+  if (selectionBox) {
+    dragScrollInitialRect = selectionBox.getBoundingClientRect();
+  }
+
+  // 添加事件监听
   document.addEventListener('mousemove', handleDragScrollMove);
   document.addEventListener('mouseup', handleDragScrollEnd);
-
-  console.log('拖拽事件监听器已添加');
 }
 
 // 处理拖拽开始 - 触摸
@@ -1043,6 +1061,12 @@ function handleDragScrollTouchStart(e: TouchEvent) {
   // 防止默认行为和冒泡
   e.preventDefault();
   e.stopPropagation();
+
+  // 移除屏幕上的任何Toast提示，避免影响截图
+  const toast = document.getElementById('ai-assistant-drag-capture-toast');
+  if (toast) {
+    toast.remove();
+  }
 
   // 记录开始位置
   isDragging = true;
@@ -1670,6 +1694,12 @@ function startExtendedAreaScreenshot() {
 function handleExtendedMouseDown(e: MouseEvent) {
   // 阻止默认行为以防止文本被选中
   e.preventDefault();
+
+  // 移除屏幕上的任何Toast提示，避免影响截图
+  const toast = document.getElementById('ai-assistant-drag-capture-toast');
+  if (toast) {
+    toast.remove();
+  }
 
   console.log('扩展选区开始:', e.clientX, e.clientY);
   isExtendedSelecting = true;
@@ -2323,3 +2353,4 @@ function handleKeyDown(e: KeyboardEvent) {
     document.removeEventListener('keydown', handleKeyDown);
   }
 }
+
