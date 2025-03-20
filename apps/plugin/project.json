@@ -8,7 +8,7 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "wxt build",
+        "command": "pnpm build",
         "cwd": "apps/plugin"
       },
       "dependsOn": ["^build"]
@@ -16,7 +16,7 @@
     "dev": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "wxt",
+        "command": "pnpm dev",
         "cwd": "apps/plugin"
       },
       "dependsOn": ["^build"]
@@ -24,7 +24,7 @@
     "zip": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "wxt zip",
+        "command": "pnpm zip",
         "cwd": "apps/plugin"
       },
       "dependsOn": ["build"]
