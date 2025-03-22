@@ -1,30 +1,108 @@
 /**
  * 截图相关功能
+ *
+ * 执行流程：
+ * 1. startExtendedAreaScreenshot: 开始截图
+ * 2. createScreenshotElements: 创建UI元素
+ * 3. handleExtendedMouseDown: 开始选区
+ * 4. handleExtendedMouseMove: 处理选区移动和自动滚动
+ * 5. handleExtendedMouseUp: 完成选区
+ * 6. captureExtendedArea: 开始捕获
+ * 7. collectExtendedAreaImages: 收集图像
+ * 8. finishExtendedAreaCapture: 合成最终图像
+ * 9. cleanupExtendedScreenshot: 清理资源
  */
 
 import { useScreenshotStore } from '../stores/screenshot';
 
+// ============= 1. 全局变量定义 =============
 let selectionBox: HTMLElement | null = null;
 let screenshotOverlay: HTMLElement | null = null;
 let screenshotControls: HTMLElement | null = null;
 let scrollCaptureProgress: HTMLElement | null = null;
 
-// 截图相关变量
-
+// 截图状态变量
 let startX = 0;
 let startY = 0;
 let endX = 0;
 let endY = 0;
 
-
-// 添加自动滚动相关变量
+// 自动滚动相关变量
 let autoScrolling = false;
 let autoScrollSpeed = 0;
-let autoScrollDirection = 0; // 0: 无滚动, 1: 向下滚动, -1: 向上滚动
+let autoScrollDirection = 0;
 let autoScrollIntervalId: number | null = null;
-let extendedSelectionStartY = 0; // 拖拽开始时的文档Y坐标
-let extendedSelectionEndY = 0; // 拖拽结束时的文档Y坐标
+let extendedSelectionStartY = 0;
+let extendedSelectionEndY = 0;
 let isExtendedSelecting = false;
+
+// ============= 2. UI管理相关函数 =============
+
+/**
+ * 统一管理UI元素的显示/隐藏
+ */
+interface UIElementVisibility {
+  element: HTMLElement;
+  display: string;
+}
+
+function manageUIElements(elements: UIElementVisibility[], action: 'show' | 'hide') {
+  elements.forEach(({ element, display }) => {
+    if (action === 'hide') {
+      element.dataset.prevDisplay = element.style.display;
+      element.style.display = 'none';
+    } else {
+      element.style.display = element.dataset.prevDisplay || display;
+      delete element.dataset.prevDisplay;
+    }
+  });
+}
+
+/**
+ * 更新选择框位置和大小
+ */
+function updateSelectionBox(params: {
+  startX: number;
+  endX: number;
+  startY: number;
+  endY: number;
+  scrollY?: number;
+}) {
+  if (!selectionBox) return;
+
+  const { startX, endX, startY, endY, scrollY = 0 } = params;
+
+  // 计算视口内的坐标
+  const viewportStartY = startY - scrollY;
+  const viewportEndY = endY - scrollY;
+
+  // 计算选择框位置
+  const left = Math.min(startX, endX);
+  const top = Math.min(viewportStartY, viewportEndY);
+  const width = Math.abs(endX - startX);
+  const height = Math.abs(viewportEndY - viewportStartY);
+
+  // 边框相关常量
+  const borderWidth = 2;
+  const safeMargin = 4;
+
+  // 确保选区不超出视口右边界
+  const adjustedWidth = Math.min(
+    width,
+    window.innerWidth - left - (borderWidth + safeMargin)
+  );
+
+  // 更新选区样式
+  selectionBox.style.left = `${left}px`;
+  selectionBox.style.top = `${top}px`;
+  selectionBox.style.width = `${adjustedWidth}px`;
+  selectionBox.style.height = `${height}px`;
+
+  // 边缘处理
+  selectionBox.style.border = left + adjustedWidth > window.innerWidth - (borderWidth + safeMargin)
+    ? `${borderWidth}px solid rgba(110, 89, 242, 0.9)`
+    : `${borderWidth}px dashed #6e59f2`;
+}
 
 // 1. 开始选区截图
 export function startExtendedAreaScreenshot() {
@@ -373,138 +451,30 @@ function collectExtendedAreaImages(
 
 // 隐藏UI元素以便截图
 function hideUIElementsForCapture() {
-  // 隐藏进度指示器
-  if (scrollCaptureProgress) {
-    scrollCaptureProgress.dataset.prevDisplay =
-      scrollCaptureProgress.style.display;
-    scrollCaptureProgress.style.display = 'none';
-  }
+  const elements = [
+    { element: scrollCaptureProgress!, display: 'flex' },
+    { element: selectionBox!, display: 'block' },
+    { element: screenshotControls!, display: 'flex' }
+  ].filter(({ element }) => element);
 
-  // 隐藏选择框
-  if (selectionBox) {
-    selectionBox.dataset.prevDisplay = selectionBox.style.display;
-    selectionBox.style.display = 'none';
-  }
-
-  // 隐藏控制按钮
-  if (screenshotControls) {
-    screenshotControls.dataset.prevDisplay = screenshotControls.style.display;
-    screenshotControls.style.display = 'none';
-  }
-
-  // 隐藏其他可能的UI元素
-  const toast = document.getElementById('ai-assistant-drag-capture-toast');
-  if (toast) {
-    toast.dataset.prevDisplay = toast.style.display;
-    toast.style.display = 'none';
-  }
-
-  // 隐藏防止交互层
-  const preventInteractionOverlay = document.getElementById(
-    'ai-assistant-prevent-interaction'
-  );
-  if (preventInteractionOverlay) {
-    preventInteractionOverlay.dataset.prevDisplay =
-      preventInteractionOverlay.style.display;
-    preventInteractionOverlay.style.display = 'none';
-  }
-
-  // 隐藏拖拽提示
-  const dragHint = document.getElementById('ai-assistant-drag-hint');
-  if (dragHint) {
-    dragHint.dataset.prevDisplay = dragHint.style.display;
-    dragHint.style.display = 'none';
-  }
-
-  // 隐藏拖拽状态指示器
-  const dragStatus = document.getElementById('ai-assistant-drag-status');
-  if (dragStatus) {
-    dragStatus.dataset.prevDisplay = dragStatus.style.display;
-    dragStatus.style.display = 'none';
-  }
-
-  // 隐藏所有截图相关的自定义元素
-  const allAssistantElements = document.querySelectorAll(
-    '[id^="ai-assistant-"]'
-  );
-  allAssistantElements.forEach((element) => {
-    const htmlElement = element as HTMLElement;
-    // 如果元素还没有被处理过，则隐藏它
-    if (
-      htmlElement &&
-      !htmlElement.dataset.prevDisplay &&
-      htmlElement.style.display !== 'none'
-    ) {
-      htmlElement.dataset.prevDisplay = htmlElement.style.display || 'block';
-      htmlElement.style.display = 'none';
+  // 添加其他动态元素
+  ['ai-assistant-drag-capture-toast', 'ai-assistant-prevent-interaction',
+   'ai-assistant-drag-hint', 'ai-assistant-drag-status'].forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      elements.push({ element, display: 'block' });
     }
   });
+
+  manageUIElements(elements, 'hide');
 }
 
 // 恢复UI元素显示
 function restoreUIElementsAfterCapture() {
-  // 恢复进度指示器
-  if (scrollCaptureProgress && scrollCaptureProgress.dataset.prevDisplay) {
-    scrollCaptureProgress.style.display =
-      scrollCaptureProgress.dataset.prevDisplay;
-    delete scrollCaptureProgress.dataset.prevDisplay;
-  }
-
-  // 恢复选择框
-  if (selectionBox && selectionBox.dataset.prevDisplay) {
-    selectionBox.style.display = selectionBox.dataset.prevDisplay;
-    delete selectionBox.dataset.prevDisplay;
-  }
-
-  // 恢复控制按钮
-  if (screenshotControls && screenshotControls.dataset.prevDisplay) {
-    screenshotControls.style.display = screenshotControls.dataset.prevDisplay;
-    delete screenshotControls.dataset.prevDisplay;
-  }
-
-  // 恢复其他可能的UI元素
-  const toast = document.getElementById('ai-assistant-drag-capture-toast');
-  if (toast && toast.dataset.prevDisplay) {
-    toast.style.display = toast.dataset.prevDisplay;
-    delete toast.dataset.prevDisplay;
-  }
-
-  // 恢复防止交互层
-  const preventInteractionOverlay = document.getElementById(
-    'ai-assistant-prevent-interaction'
-  );
-  if (
-    preventInteractionOverlay &&
-    preventInteractionOverlay.dataset.prevDisplay
-  ) {
-    preventInteractionOverlay.style.display =
-      preventInteractionOverlay.dataset.prevDisplay;
-    delete preventInteractionOverlay.dataset.prevDisplay;
-  }
-
-  // 恢复拖拽提示
-  const dragHint = document.getElementById('ai-assistant-drag-hint');
-  if (dragHint && dragHint.dataset.prevDisplay) {
-    dragHint.style.display = dragHint.dataset.prevDisplay;
-    delete dragHint.dataset.prevDisplay;
-  }
-
-  // 恢复拖拽状态指示器
-  const dragStatus = document.getElementById('ai-assistant-drag-status');
-  if (dragStatus && dragStatus.dataset.prevDisplay) {
-    dragStatus.style.display = dragStatus.dataset.prevDisplay;
-    delete dragStatus.dataset.prevDisplay;
-  }
-
-  // 恢复所有被隐藏的截图相关元素
-  const allAssistantElements = document.querySelectorAll(
-    '[id^="ai-assistant-"]'
-  );
-  allAssistantElements.forEach((element) => {
-    const htmlElement = element as HTMLElement;
-    if (htmlElement && htmlElement.dataset.prevDisplay) {
-      htmlElement.style.display = htmlElement.dataset.prevDisplay;
-      delete htmlElement.dataset.prevDisplay;
+  const elements = document.querySelectorAll('[id^="ai-assistant-"]');
+  elements.forEach(element => {
+    if (element instanceof HTMLElement && element.dataset.prevDisplay) {
+      manageUIElements([{ element, display: element.dataset.prevDisplay }], 'show');
     }
   });
 }
@@ -827,7 +797,6 @@ function cleanupScreenshotUI() {
   stopAutoScroll();
 
   if (screenshotOverlay) {
-    console.log(111222);
     screenshotOverlay.style.display = 'none';
   }
 
@@ -866,7 +835,13 @@ function handleExtendedMouseDown(e: MouseEvent) {
   extendedSelectionStartY = e.clientY + window.scrollY;
   extendedSelectionEndY = e.clientY + window.scrollY;
 
-  updateSelectionBox();
+  updateSelectionBox({
+    startX,
+    endX,
+    startY: extendedSelectionStartY,
+    endY: extendedSelectionEndY,
+    scrollY: window.scrollY
+  });
 
   if (selectionBox) {
     selectionBox.style.display = 'block';
@@ -892,8 +867,14 @@ function handleExtendedMouseMove(e: MouseEvent) {
   // 检查是否需要自动滚动
   checkAutoScroll(e);
 
-  // 更新选择框
-  updateExtendedSelectionBox();
+  // 使用统一的updateSelectionBox函数
+  updateSelectionBox({
+    startX,
+    endX,
+    startY: extendedSelectionStartY,
+    endY: extendedSelectionEndY,
+    scrollY: window.scrollY
+  });
 }
 
 // 检查并处理自动滚动
@@ -948,47 +929,14 @@ function startAutoScroll() {
     extendedSelectionEndY += scrollAmount;
 
     // 更新选择框
-    updateExtendedSelectionBox();
+    updateSelectionBox({
+      startX,
+      endX,
+      startY: extendedSelectionStartY,
+      endY: extendedSelectionEndY,
+      scrollY: window.scrollY
+    });
   }, 16); // 约60fps
-}
-
-// 更新扩展选择框位置和大小
-function updateExtendedSelectionBox() {
-  if (!selectionBox) return;
-
-  // 计算视口内的坐标
-  const viewportStartY = extendedSelectionStartY - window.scrollY;
-  const viewportEndY = extendedSelectionEndY - window.scrollY;
-
-  // 计算选择框位置（取可见部分）
-  const left = Math.min(startX, endX);
-  const top = Math.min(viewportStartY, viewportEndY);
-  const width = Math.abs(endX - startX);
-  const height = Math.abs(viewportEndY - viewportStartY);
-
-  // 边框宽度
-  const borderWidth = 2;
-  // 额外边距，确保在高DPR屏幕上也有足够空间
-  const safeMargin = 4;
-
-  // 确保选区不超出视口右边界，保留边框宽度+安全边距
-  const adjustedWidth = Math.min(
-    width,
-    window.innerWidth - left - (borderWidth + safeMargin)
-  );
-
-  // 更新选择框样式
-  selectionBox.style.left = `${left}px`;
-  selectionBox.style.top = `${top}px`;
-  selectionBox.style.width = `${adjustedWidth}px`;
-  selectionBox.style.height = `${height}px`;
-
-  // 当接近边缘时更改边框样式以增强可见性
-  if (left + adjustedWidth > window.innerWidth - (borderWidth + safeMargin)) {
-    selectionBox.style.borderRight = `${borderWidth}px solid rgba(110, 89, 242, 0.9)`;
-  } else {
-    selectionBox.style.border = `${borderWidth}px dashed #6e59f2`;
-  }
 }
 
 // 处理扩展鼠标释放事件
@@ -1067,41 +1015,6 @@ function handleExtendedMouseUp(e: MouseEvent) {
   // 移除事件监听器
   document.removeEventListener('mousemove', handleExtendedMouseMove);
   document.removeEventListener('mouseup', handleExtendedMouseUp);
-}
-
-// 更新选择框位置和大小
-function updateSelectionBox() {
-  if (!selectionBox) return;
-
-  // 计算框选的左上角坐标和宽高
-  const left = Math.min(startX, endX);
-  const top = Math.min(startY, endY);
-  const width = Math.abs(endX - startX);
-  const height = Math.abs(endY - startY);
-
-  // 边框宽度
-  const borderWidth = 2;
-  // 额外边距，确保在高DPR屏幕上也有足够空间
-  const safeMargin = 4;
-
-  // 确保选区不超出视口右边界，保留边框宽度+安全边距
-  const adjustedWidth = Math.min(
-    width,
-    window.innerWidth - left - (borderWidth + safeMargin)
-  );
-
-  // 更新选区样式
-  selectionBox.style.left = `${left}px`;
-  selectionBox.style.top = `${top}px`;
-  selectionBox.style.width = `${adjustedWidth}px`;
-  selectionBox.style.height = `${height}px`;
-
-  // 当接近边缘时更改边框样式以增强可见性
-  if (left + adjustedWidth > window.innerWidth - (borderWidth + safeMargin)) {
-    selectionBox.style.borderRight = `${borderWidth}px solid rgba(110, 89, 242, 0.9)`;
-  } else {
-    selectionBox.style.border = `${borderWidth}px dashed #6e59f2`;
-  }
 }
 
 // 处理键盘按键事件，用于取消截图
