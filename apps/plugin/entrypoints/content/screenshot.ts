@@ -258,6 +258,9 @@ function confirmAreaScreenshot() {
 
 // 捕获扩展选择区域
 function captureExtendedArea() {
+  // 先隐藏所有UI元素，再显示进度指示器
+  hideUIElementsForCapture();
+
   // 显示进度指示器
   if (scrollCaptureProgress) {
     scrollCaptureProgress.style.display = 'flex';
@@ -373,7 +376,9 @@ function collectExtendedAreaImages(
     Math.round(((currentScrollY - startPos) / (endPos - startPos)) * 100)
   );
 
+  // 更新进度指示器，确保它在捕获过程中可见
   if (scrollCaptureProgress) {
+    scrollCaptureProgress.style.display = 'flex';
     const progressText = document.getElementById(
       'ai-assistant-scroll-progress-text'
     );
@@ -382,99 +387,157 @@ function collectExtendedAreaImages(
     }
   }
 
-  // 暂时隐藏UI元素，避免它们出现在截图中
+  // 再次隐藏UI元素，确保每次捕获前都不会出现UI，但保留进度指示器
   hideUIElementsForCapture();
 
-  // 捕获当前可见区域
-  chrome.runtime.sendMessage(
-    { action: 'captureVisibleTabForScroll' },
-    (response) => {
-      // 捕获完成后立即恢复UI显示
-      restoreUIElementsAfterCapture();
+  // 暂时隐藏进度指示器，仅用于截图瞬间
+  if (scrollCaptureProgress) {
+    scrollCaptureProgress.dataset.tempDisplay = scrollCaptureProgress.style.display;
+    scrollCaptureProgress.style.display = 'none';
+  }
 
-      if (!response || !response.dataUrl) {
-        console.error('无法捕获屏幕:', response?.error || '未知错误');
-        cleanupExtendedScreenshot();
-        return;
-      }
+  // 为确保UI元素完全隐藏后再截图，增加短暂延迟
+  setTimeout(() => {
+    // 捕获当前可见区域
+    chrome.runtime.sendMessage(
+      { action: 'captureVisibleTabForScroll' },
+      (response) => {
+        // 捕获完成后立即恢复进度指示器
+        if (scrollCaptureProgress && scrollCaptureProgress.dataset.tempDisplay) {
+          scrollCaptureProgress.style.display = scrollCaptureProgress.dataset.tempDisplay;
+          delete scrollCaptureProgress.dataset.tempDisplay;
+        }
 
-      // 添加到图片数组
-      images.push({
-        dataUrl: response.dataUrl,
-        scrollY: currentScrollY,
-      });
+        // 捕获完成后立即恢复UI显示
+        restoreUIElementsAfterCapture();
 
-      // 检查是否已完成全部捕获
-      if (currentScrollY + window.innerHeight >= endPos) {
-        // 合成最终图像
-        finishExtendedAreaCapture(
-          canvas,
-          ctx,
-          images,
-          startPos,
-          endPos,
-          left,
-          width
+        if (!response || !response.dataUrl) {
+          console.error('无法捕获屏幕:', response?.error || '未知错误');
+          cleanupExtendedScreenshot();
+          return;
+        }
+
+        // 添加到图片数组
+        images.push({
+          dataUrl: response.dataUrl,
+          scrollY: currentScrollY,
+        });
+
+        // 检查是否已完成全部捕获
+        if (currentScrollY + window.innerHeight >= endPos) {
+          // 合成最终图像
+          finishExtendedAreaCapture(
+            canvas,
+            ctx,
+            images,
+            startPos,
+            endPos,
+            left,
+            width
+          );
+          return;
+        }
+
+        // 计算下一个滚动位置
+        const viewportHeight = window.innerHeight;
+        // 每次滚动90%视口高度，确保有重叠
+        const nextPos = Math.min(
+          currentScrollY + viewportHeight * 0.9,
+          endPos - viewportHeight
         );
-        return;
+
+        // 滚动到下一个位置
+        window.scrollTo({
+          top: nextPos,
+          behavior: 'instant',
+        });
+
+        // 等待滚动完成并稳定
+        setTimeout(() => {
+          collectExtendedAreaImages(
+            canvas,
+            ctx,
+            startPos,
+            endPos,
+            left,
+            width,
+            images
+          );
+        }, 300);
       }
-
-      // 计算下一个滚动位置
-      const viewportHeight = window.innerHeight;
-      // 每次滚动90%视口高度，确保有重叠
-      const nextPos = Math.min(
-        currentScrollY + viewportHeight * 0.9,
-        endPos - viewportHeight
-      );
-
-      // 滚动到下一个位置
-      window.scrollTo({
-        top: nextPos,
-        behavior: 'instant',
-      });
-
-      // 等待滚动完成并稳定
-      setTimeout(() => {
-        collectExtendedAreaImages(
-          canvas,
-          ctx,
-          startPos,
-          endPos,
-          left,
-          width,
-          images
-        );
-      }, 300);
-    }
-  );
+    );
+  }, 50); // 增加50ms延迟确保UI隐藏后再截图
 }
 
 // 隐藏UI元素以便截图
 function hideUIElementsForCapture() {
-  const elements = [
-    { element: scrollCaptureProgress!, display: 'flex' },
+  // 确保所有与截图相关的UI元素都被隐藏
+  // 创建一个完整的需要隐藏的元素列表
+  const elementsToHide = [
     { element: selectionBox!, display: 'block' },
+    { element: screenshotOverlay!, display: 'block' },
     { element: screenshotControls!, display: 'flex' }
   ].filter(({ element }) => element);
 
-  // 添加其他动态元素
-  ['ai-assistant-drag-capture-toast', 'ai-assistant-prevent-interaction',
-   'ai-assistant-drag-hint', 'ai-assistant-drag-status'].forEach(id => {
-    const element = document.getElementById(id);
-    if (element) {
-      elements.push({ element, display: 'block' });
+  // 添加所有以ai-assistant开头的动态元素，但排除进度指示器
+  const dynamicElements = document.querySelectorAll('[id^="ai-assistant-"]');
+  dynamicElements.forEach(element => {
+    if (element instanceof HTMLElement) {
+      // 排除进度指示器及其相关元素
+      if (element === scrollCaptureProgress ||
+          element.id === 'ai-assistant-scroll-progress' ||
+          element.id === 'ai-assistant-scroll-progress-text' ||
+          element.id === 'ai-assistant-prevent-interaction') {
+        return;
+      }
+      elementsToHide.push({ element, display: element.style.display || 'block' });
     }
   });
 
-  manageUIElements(elements, 'hide');
+  // 隐藏所有元素
+  manageUIElements(elementsToHide, 'hide');
+
+  // 确保隐藏成功
+  setTimeout(() => {
+    // 再次检查并隐藏可能未被隐藏的元素，但保留进度指示器
+    const remainingElements = document.querySelectorAll('[id^="ai-assistant-"]');
+    remainingElements.forEach(element => {
+      if (element instanceof HTMLElement && element.style.display !== 'none') {
+        // 排除进度指示器及其相关元素
+        if (element === scrollCaptureProgress ||
+            element.id === 'ai-assistant-scroll-progress' ||
+            element.id === 'ai-assistant-scroll-progress-text' ||
+            element.id === 'ai-assistant-prevent-interaction') {
+          return;
+        }
+        element.dataset.prevDisplay = element.style.display || 'block';
+        element.style.display = 'none';
+      }
+    });
+  }, 10);
 }
 
 // 恢复UI元素显示
 function restoreUIElementsAfterCapture() {
-  const elements = document.querySelectorAll('[id^="ai-assistant-"]');
+  // 只恢复特定元素，保留进度显示
+  // 获取捕获进度元素的引用
+  const progressElement = document.getElementById('ai-assistant-scroll-progress');
+
+  // 遍历带有data-prevDisplay属性的元素
+  const elements = document.querySelectorAll('[data-prevDisplay]');
   elements.forEach(element => {
-    if (element instanceof HTMLElement && element.dataset.prevDisplay) {
-      manageUIElements([{ element, display: element.dataset.prevDisplay }], 'show');
+    if (element instanceof HTMLElement) {
+      // 跳过进度指示器和任何与捕获相关的UI
+      if (element === progressElement ||
+          element.id === 'ai-assistant-scroll-progress' ||
+          element.id === 'ai-assistant-scroll-progress-text' ||
+          element.id === 'ai-assistant-prevent-interaction') {
+        return;
+      }
+
+      // 恢复其他元素的显示状态
+      element.style.display = element.dataset.prevDisplay || 'block';
+      delete element.dataset.prevDisplay;
     }
   });
 }
@@ -578,6 +641,15 @@ function finishExtendedAreaCapture(
   // 处理并合成图像
   const processImages = async () => {
     try {
+      // 确保进度指示器显示
+      if (scrollCaptureProgress) {
+        scrollCaptureProgress.style.display = 'flex';
+        const progressText = document.getElementById('ai-assistant-scroll-progress-text');
+        if (progressText) {
+          progressText.textContent = '正在合成扩展区域截图...';
+        }
+      }
+
       // 加载所有图像
       const loadedImages = await Promise.all(
         images.map((img) => {
@@ -613,6 +685,14 @@ function finishExtendedAreaCapture(
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
+      // 更新进度指示器
+      if (scrollCaptureProgress) {
+        const progressText = document.getElementById('ai-assistant-scroll-progress-text');
+        if (progressText) {
+          progressText.textContent = '正在分析图像...';
+        }
+      }
+
       // 筛选出第一张和最后一张图像以确定裁剪区域
       const firstImage = loadedImages.sort((a, b) => a.scrollY - b.scrollY)[0];
       const lastImage = loadedImages.sort((a, b) => b.scrollY - a.scrollY)[0];
@@ -630,6 +710,14 @@ function finishExtendedAreaCapture(
           dpr
         );
         console.log('检测到浏览器工具栏高度:', toolbarHeight);
+      }
+
+      // 更新进度指示器
+      if (scrollCaptureProgress) {
+        const progressText = document.getElementById('ai-assistant-scroll-progress-text');
+        if (progressText) {
+          progressText.textContent = '正在合成最终图像...';
+        }
       }
 
       // 根据滚动位置将图像合到Canvas上，同时避开浏览器UI元素
@@ -679,6 +767,14 @@ function finishExtendedAreaCapture(
       // 获取最终图像URL
       const finalImageUrl = finalCanvas.toDataURL('image/png');
 
+      // 更新进度指示器
+      if (scrollCaptureProgress) {
+        const progressText = document.getElementById('ai-assistant-scroll-progress-text');
+        if (progressText) {
+          progressText.textContent = '截图完成，正在发送...';
+        }
+      }
+
       // 发送到侧边栏
       chrome.runtime.sendMessage(
         {
@@ -692,17 +788,20 @@ function finishExtendedAreaCapture(
               text: '扩展区域截图',
               addToInput: true,
             });
+
+            // 显示成功提示
+            showDragCaptureToast('扩展区域截图已完成');
+
+            // 截图发送后清理资源
+            cleanupExtendedScreenshot();
           }, 500);
         }
       );
-
-      // 显示成功提示
-      showDragCaptureToast('扩展区域截图已完成');
     } catch (error) {
       console.error('处理扩展区域截图失败:', error);
       showDragCaptureToast('截图处理失败，请重试');
-    } finally {
-      // 清理资源
+
+      // 错误时也需要清理资源
       cleanupExtendedScreenshot();
     }
   };
