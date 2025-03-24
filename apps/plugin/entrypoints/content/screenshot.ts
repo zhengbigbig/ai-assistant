@@ -323,11 +323,33 @@ function captureExtendedArea() {
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 先滚动到区域起始位置
+  // 步骤1: 根据滚动方向计算相对间距
+  // 这个相对间距用于确定初始滚动位置和后续图像拼接的重叠区域
+  let relativeOffset = 0;
+  const viewportHeight = window.innerHeight;
+  const isScrollingDown = extendedSelectionStartY <= extendedSelectionEndY;
+
+  if (isScrollingDown) {
+    // 从上往下滚动时，取初始点相对于视口顶部的距离，并取余数
+    relativeOffset = extendedSelectionStartY % viewportHeight;
+    console.log('从上往下滚动，相对间距(初始点 % 视口高度):', relativeOffset);
+  } else {
+    // 从下往上滚动时，取终止点相对于视口顶部的距离，并取余数
+    relativeOffset = extendedSelectionEndY % viewportHeight;
+    console.log('从下往上滚动，相对间距(终止点 % 视口高度):', relativeOffset);
+  }
+
+  // 计算初始滚动位置（考虑相对间距）
+  // 初始位置 = 选区起点 - 相对间距
+  const initialScrollY = startScrollY - relativeOffset;
+  console.log('初始滚动位置:', initialScrollY, '原始起始位置:', startScrollY, '相对间距:', relativeOffset);
+
+  // 先滚动到初始位置
   window.scrollTo({
-    top: startScrollY,
+    top: Math.max(0, initialScrollY), // 确保不会滚到负值
     behavior: 'instant',
   });
+
   // 开始捕获过程
   setTimeout(() => {
     // 收集所有需要的截图
@@ -338,7 +360,9 @@ function captureExtendedArea() {
       endScrollY,
       left,
       adjustedWidth,
-      startScrollY
+      Math.max(0, initialScrollY), // 实际滚动位置可能因为边界限制与理想位置不同
+      relativeOffset,
+      []
     );
   }, 300);
 }
@@ -352,16 +376,18 @@ function collectExtendedAreaImages(
   left: number,
   width: number,
   lastTargetScrollY: number,
-  images: Array<{ dataUrl: string; scrollY: number }> = []
+  relativeOffset: number,
+  images: Array<{ dataUrl: string; scrollY: number; sourceY: number; sourceHeight: number }> = []
 ) {
   // 更新进度
   const currentScrollY = lastTargetScrollY;
-  // 滚动距离，视口高度
+  // 获取视口高度
   const viewportHeight = window.innerHeight;
   const progress = Math.min(
     100,
-    Math.round(((currentScrollY - startPos) / (endPos - startPos)) * 100)
+    Math.round(((currentScrollY - (startPos - relativeOffset)) / (endPos - startPos)) * 100)
   );
+
   // 更新进度指示器，确保它在捕获过程中可见
   if (scrollCaptureProgress) {
     scrollCaptureProgress.style.display = 'flex';
@@ -384,7 +410,7 @@ function collectExtendedAreaImages(
   }
 
   // 为确保UI元素完全隐藏后再截图，增加短暂延迟
-  // 捕获当前可见区域
+  // 步骤2：先截图后滚动
   setTimeout(() => {
     chrome.runtime.sendMessage(
       { action: 'captureVisibleTabForScroll' },
@@ -408,20 +434,54 @@ function collectExtendedAreaImages(
           return;
         }
 
+        // 步骤2：计算下一次滚动位置 (当前滚动位置 + 视口高度 - 相对间距)
+        const nextScrollY = Math.min(
+          currentScrollY + viewportHeight - relativeOffset,
+          // 最后一张图片不能超过终点
+          endPos - viewportHeight
+        );
+
+        // 步骤3：计算当前图像的源起始位置和高度
+        let sourceY = 0;
+        let sourceHeight = 0;
+
+        // 第一张图片的情况
+        if (images.length === 0) {
+          // 第一张图片源起始位置为0
+          sourceY = 0;
+          // 源图高度为下一次滚动位置 - 当前滚动位置
+          sourceHeight = nextScrollY - currentScrollY;
+        } else {
+          // 后续图片源起始位置为相对间距
+          sourceY = relativeOffset;
+          // 源图高度为下一次滚动位置 - 当前滚动位置
+          sourceHeight = nextScrollY - currentScrollY;
+
+          // 最后一张图片可能需要部分裁剪
+          if (currentScrollY + viewportHeight > endPos) {
+            sourceHeight = endPos - currentScrollY;
+          }
+        }
+
+        console.log('添加图片:', {
+          scrollY: currentScrollY,
+          nextScrollY,
+          sourceY,
+          sourceHeight,
+          viewportHeight,
+          relativeOffset
+        });
+
         // 添加到图片数组
         images.push({
           dataUrl: response.dataUrl,
           scrollY: currentScrollY,
+          sourceY,
+          sourceHeight
         });
 
-        // 下一次滚动起点
-        const lastTargetScrollY = Math.min(
-          currentScrollY + viewportHeight,
-          // 最后一张图片的起始点
-          endPos - viewportHeight
-        );
-        // 检查是否已完成全部捕获, 即滚动到了最后一张图片的起点
-        if (lastTargetScrollY >= endPos - viewportHeight) {
+        // 检查是否已完成全部捕获
+        if (nextScrollY >= endPos - viewportHeight) {
           // 合成最终图像
           finishExtendedAreaCapture(
             canvas,
@@ -430,14 +490,15 @@ function collectExtendedAreaImages(
             startPos,
             endPos,
             left,
-            width
+            width,
+            relativeOffset
           );
           return;
         }
 
         // 滚动到下一个位置
         window.scrollTo({
-          top: lastTargetScrollY,
+          top: nextScrollY,
           behavior: 'instant',
         });
 
@@ -450,7 +511,8 @@ function collectExtendedAreaImages(
             endPos,
             left,
             width,
-            lastTargetScrollY,
+            nextScrollY,
+            relativeOffset,
             images
           );
         }, 300);
@@ -549,11 +611,12 @@ function restoreUIElementsAfterCapture() {
 function finishExtendedAreaCapture(
   canvas: HTMLCanvasElement,
   ctx: CanvasRenderingContext2D,
-  images: Array<{ dataUrl: string; scrollY: number }>,
+  images: Array<{ dataUrl: string; scrollY: number; sourceY: number; sourceHeight: number }>,
   startScrollY: number,
   endScrollY: number,
   left: number,
-  width: number
+  width: number,
+  relativeOffset: number
 ) {
   // 更新进度显示
   if (scrollCaptureProgress) {
@@ -563,81 +626,6 @@ function finishExtendedAreaCapture(
     );
     if (progressText) {
       progressText.textContent = '正在合成扩展区域截图...';
-    }
-  }
-
-  // 检测浏览器工具栏高度的辅助函数
-  function detectBrowserToolbarHeight(
-    firstImage: HTMLImageElement,
-    lastImage: HTMLImageElement,
-    dpr: number
-  ): number {
-    try {
-      // 创建临时canvas来分析图片
-      const canvas1 = document.createElement('canvas');
-      const canvas2 = document.createElement('canvas');
-      const ctx1 = canvas1.getContext('2d', { willReadFrequently: true });
-      const ctx2 = canvas2.getContext('2d', { willReadFrequently: true });
-
-      if (!ctx1 || !ctx2) return 0;
-
-      // 设置宽度为图片宽度，高度为可能的工具栏高度范围
-      const analyzeHeight = 150 * dpr; // 假设最大工具栏高度150像素
-      canvas1.width = canvas2.width = firstImage.width;
-      canvas1.height = canvas2.height = analyzeHeight;
-
-      // 绘制两张图片的顶部区域到canvas
-      ctx1.drawImage(firstImage, 0, 0);
-      ctx2.drawImage(lastImage, 0, 0);
-
-      // 获取像素数据
-      const data1 = ctx1.getImageData(0, 0, canvas1.width, analyzeHeight).data;
-      const data2 = ctx2.getImageData(0, 0, canvas2.width, analyzeHeight).data;
-
-      // 计算每一行的像素差异
-      let significantDiffFound = false;
-      let toolbarHeight = 0;
-
-      // 每dpr像素分析一次，提高效率
-      for (let y = 0; y < analyzeHeight; y += dpr) {
-        let rowDiff = 0;
-        let pixelsAnalyzed = 0;
-
-        // 采样分析该行的若干像素点
-        for (let x = 0; x < canvas1.width; x += dpr * 10) {
-          // 每10个像素采样一次
-          const i = (y * canvas1.width + x) * 4; // RGBA四个通道
-          // 计算两个像素的颜色差异
-          const rDiff = Math.abs(data1[i] - data2[i]);
-          const gDiff = Math.abs(data1[i + 1] - data2[i + 1]);
-          const bDiff = Math.abs(data1[i + 2] - data2[i + 2]);
-          const aDiff = Math.abs(data1[i + 3] - data2[i + 3]);
-
-          // 总差异
-          const pixelDiff = rDiff + gDiff + bDiff + aDiff;
-          rowDiff += pixelDiff;
-          pixelsAnalyzed++;
-        }
-
-        // 计算平均差异
-        const avgDiff = pixelsAnalyzed > 0 ? rowDiff / pixelsAnalyzed : 0;
-
-        // 如果差异大于阈值，认为是从浏览器UI元素过渡到网页内容的边界
-        if (avgDiff > 30 && !significantDiffFound) {
-          // 阈值可以根据实际情况调整
-          significantDiffFound = true;
-          toolbarHeight = y;
-          break;
-        }
-      }
-
-      // 如果没有找到明显差异，返回安全的默认值
-      return significantDiffFound
-        ? toolbarHeight
-        : Math.min(60 * dpr, analyzeHeight / 3);
-    } catch (error) {
-      console.error('检测浏览器工具栏高度时出错:', error);
-      return 0; // 失败时不进行裁剪
     }
   }
 
@@ -658,11 +646,21 @@ function finishExtendedAreaCapture(
       // 加载所有图像
       const loadedImages = await Promise.all(
         images.map((img) => {
-          return new Promise<{ img: HTMLImageElement; scrollY: number }>(
+          return new Promise<{
+            img: HTMLImageElement;
+            scrollY: number;
+            sourceY: number;
+            sourceHeight: number;
+          }>(
             (resolve, reject) => {
               const image = new Image();
               image.onload = () =>
-                resolve({ img: image, scrollY: img.scrollY });
+                resolve({
+                  img: image,
+                  scrollY: img.scrollY,
+                  sourceY: img.sourceY,
+                  sourceHeight: img.sourceHeight
+                });
               image.onerror = () => reject(new Error('图像加载失败'));
               image.src = img.dataUrl;
             }
@@ -696,61 +694,42 @@ function finishExtendedAreaCapture(
           'ai-assistant-scroll-progress-text'
         );
         if (progressText) {
-          progressText.textContent = '正在分析图像...';
-        }
-      }
-
-      // 筛选出第一张和最后一张图像以确定裁剪区域
-      const firstImage = loadedImages.sort((a, b) => a.scrollY - b.scrollY)[0];
-      const lastImage = loadedImages.sort((a, b) => b.scrollY - a.scrollY)[0];
-
-      // 确定浏览器顶部工具栏/导航栏的高度（通常是固定的）
-      // 注意：这里我们基于假设谷歌搜索栏等导航元素通常位于页面顶部，且在滚动时固定在顶部
-      // 我们可以通过检查第一张图片和最后一张图片顶部区域的像素差异来估计这个区域的高度
-      let toolbarHeight = 0;
-      if (loadedImages.length > 1) {
-        // 假设第一张图片的顶部有浏览器元素，最后一张图片的顶部可能已经滚动到了网页内容
-        // 这里我们通过简单的图像分析来检测不同区域
-        toolbarHeight = detectBrowserToolbarHeight(
-          firstImage.img,
-          lastImage.img,
-          dpr
-        );
-        console.log('检测到浏览器工具栏高度:', toolbarHeight);
-      }
-
-      // 更新进度指示器
-      if (scrollCaptureProgress) {
-        const progressText = document.getElementById(
-          'ai-assistant-scroll-progress-text'
-        );
-        if (progressText) {
           progressText.textContent = '正在合成最终图像...';
         }
       }
 
-      // 根据滚动位置将图像合到Canvas上，同时避开浏览器UI元素
-      for (const { img, scrollY } of loadedImages) {
+      // 根据滚动位置将图像合到Canvas上
+      for (const { img, scrollY, sourceY, sourceHeight } of loadedImages) {
         // 计算图像在Canvas中的位置
         const sourceX = left * dpr;
         const sourceWidth = adjustedWidth * dpr; // 使用调整后的宽度
-        // 调整源图像的Y坐标，跳过浏览器工具栏
-        const sourceY = toolbarHeight;
-        const adjustedHeight = img.height - toolbarHeight;
-        const destY = (scrollY - startScrollY) * dpr;
 
-        // 绘制图像到对应位置，避开浏览器工具栏区域
+        // 使用预先计算好的源图Y坐标和高度，将像素比考虑进去
+        const actualSourceY = sourceY * dpr;
+        const actualSourceHeight = sourceHeight * dpr;
+
+        // 计算目标位置（相对于整个截图的开始位置）
+        const destY = (scrollY - (startScrollY - relativeOffset)) * dpr;
+
+        console.log('绘制图像:', {
+          scrollY,
+          destY: destY / dpr,
+          sourceY: actualSourceY / dpr,
+          sourceHeight: actualSourceHeight / dpr,
+        });
+
+        // 绘制图像到对应位置
         try {
           ctx.drawImage(
-            img,
-            sourceX,
-            sourceY,
-            sourceWidth,
-            adjustedHeight,
-            0,
-            destY,
-            canvas.width,
-            adjustedHeight
+            img,                // 源图像
+            sourceX,            // 源图像的x坐标
+            actualSourceY,      // 源图像的y坐标
+            sourceWidth,        // 源图像的宽度
+            actualSourceHeight, // 源图像的高度
+            0,                  // 目标canvas的x坐标
+            destY,              // 目标canvas的y坐标
+            canvas.width,       // 目标宽度（拉伸到canvas宽度）
+            actualSourceHeight  // 目标高度（保持原始高度）
           );
         } catch (err) {
           console.error('绘制图片出错:', err);
