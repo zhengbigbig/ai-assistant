@@ -289,9 +289,11 @@ function captureExtendedArea() {
   preventInteractionOverlay.style.cursor = 'progress';
   document.body.appendChild(preventInteractionOverlay);
 
+  // 获取设备像素比，用于日志记录和调试
+  const dpr = window.devicePixelRatio || 1;
+
   // 准备捕获参数
   const width = Math.abs(endX - startX);
-  const height = Math.abs(extendedSelectionEndY - extendedSelectionStartY);
   const startScrollY = Math.min(extendedSelectionStartY, extendedSelectionEndY);
   const endScrollY = Math.max(extendedSelectionStartY, extendedSelectionEndY);
   const left = Math.min(startX, endX);
@@ -306,23 +308,6 @@ function captureExtendedArea() {
     window.innerWidth - left - (borderWidth + safeMargin)
   );
 
-  // 创建画布
-  const canvas = document.createElement('canvas');
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = adjustedWidth * dpr;
-  canvas.height = height * dpr;
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) {
-    console.error('无法创建Canvas上下文');
-    cleanupExtendedScreenshot();
-    return;
-  }
-
-  // 使用白色背景填充Canvas
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   // 步骤1: 根据滚动方向计算相对间距
   // 这个相对间距用于确定初始滚动位置和后续图像拼接的重叠区域
   let relativeOffset = 0;
@@ -332,21 +317,26 @@ function captureExtendedArea() {
   if (isScrollingDown) {
     // 从上往下滚动时，取初始点相对于视口顶部的距离，并取余数
     relativeOffset = extendedSelectionStartY % viewportHeight;
-    console.log('从上往下滚动，相对间距(初始点 % 视口高度):', relativeOffset);
+    console.log(
+      '从上往下滚动，相对间距(初始点 % 视口高度):',
+      relativeOffset,
+      '设备像素比:',
+      dpr
+    );
   } else {
     // 从下往上滚动时，取终止点相对于视口顶部的距离，并取余数
     relativeOffset = extendedSelectionEndY % viewportHeight;
-    console.log('从下往上滚动，相对间距(终止点 % 视口高度):', relativeOffset);
+    console.log(
+      '从下往上滚动，相对间距(终止点 % 视口高度):',
+      relativeOffset,
+      '设备像素比:',
+      dpr
+    );
   }
-
-  // 计算初始滚动位置（考虑相对间距）
-  // 初始位置 = 选区起点 - 相对间距
-  const initialScrollY = startScrollY - relativeOffset;
-  console.log('初始滚动位置:', initialScrollY, '原始起始位置:', startScrollY, '相对间距:', relativeOffset);
 
   // 先滚动到初始位置
   window.scrollTo({
-    top: Math.max(0, initialScrollY), // 确保不会滚到负值
+    top: startScrollY,
     behavior: 'instant',
   });
 
@@ -354,14 +344,12 @@ function captureExtendedArea() {
   setTimeout(() => {
     // 收集所有需要的截图
     collectExtendedAreaImages(
-      canvas,
-      ctx,
       startScrollY,
       endScrollY,
       left,
       adjustedWidth,
-      Math.max(0, initialScrollY), // 实际滚动位置可能因为边界限制与理想位置不同
-      relativeOffset,
+      startScrollY, // 实际滚动位置可能因为边界限制与理想位置不同
+      Math.max(100, relativeOffset), // 确保有足够的重叠区域
       []
     );
   }, 300);
@@ -369,35 +357,23 @@ function captureExtendedArea() {
 
 // 收集选区区域的图像
 function collectExtendedAreaImages(
-  canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
   startPos: number,
   endPos: number,
   left: number,
   width: number,
   lastTargetScrollY: number,
   relativeOffset: number,
-  images: Array<{ dataUrl: string; scrollY: number; sourceY: number; sourceHeight: number }> = []
+  images: Array<{
+    dataUrl: string;
+    scrollY: number;
+    sourceY: number;
+    sourceHeight: number;
+  }> = []
 ) {
   // 更新进度
   const currentScrollY = lastTargetScrollY;
   // 获取视口高度
   const viewportHeight = window.innerHeight;
-  const progress = Math.min(
-    100,
-    Math.round(((currentScrollY - (startPos - relativeOffset)) / (endPos - startPos)) * 100)
-  );
-
-  // 更新进度指示器，确保它在捕获过程中可见
-  if (scrollCaptureProgress) {
-    scrollCaptureProgress.style.display = 'flex';
-    const progressText = document.getElementById(
-      'ai-assistant-scroll-progress-text'
-    );
-    if (progressText) {
-      progressText.textContent = `正在捕获扩展区域: ${progress}%`;
-    }
-  }
 
   // 再次隐藏UI元素，确保每次捕获前都不会出现UI，但保留进度指示器
   hideUIElementsForCapture();
@@ -433,66 +409,49 @@ function collectExtendedAreaImages(
           cleanupExtendedScreenshot();
           return;
         }
-
-        // 步骤2：计算下一次滚动位置 (当前滚动位置 + 视口高度 - 相对间距)
-        const nextScrollY = Math.min(
-          currentScrollY + viewportHeight - relativeOffset,
-          // 最后一张图片不能超过终点
-          endPos - viewportHeight
-        );
-
-        // 步骤3：计算当前图像的源起始位置和高度
-        let sourceY = 0;
-        let sourceHeight = 0;
-
-        // 第一张图片的情况
-        if (images.length === 0) {
-          // 第一张图片源起始位置为0
-          sourceY = 0;
-          // 源图高度为下一次滚动位置 - 当前滚动位置
-          sourceHeight = nextScrollY - currentScrollY;
+        const isFirstImage = images.length === 0;
+        // 首次sourceY为0，除非超越位置，sourceY为相对间距
+        const sourceY = isFirstImage ? 0 : relativeOffset;
+        // 首次sourceHeight为视口高度，除非超越位置，sourceHeight为视口高度 - 相对间距
+        let sourceHeight = isFirstImage
+          ? viewportHeight
+          : viewportHeight - relativeOffset;
+        let nextScrollY = 0;
+        // 预期滚动位置
+        const expectedScrollY =
+          currentScrollY + viewportHeight - relativeOffset;
+        // 不可超越位置
+        const maxScrollY = endPos - viewportHeight;
+        // 当前位置若已经到倒数第一张图片
+        if (expectedScrollY >= maxScrollY) {
+          nextScrollY = maxScrollY;
         } else {
-          // 后续图片源起始位置为相对间距
-          sourceY = relativeOffset;
-          // 源图高度为下一次滚动位置 - 当前滚动位置
-          sourceHeight = nextScrollY - currentScrollY;
-
-          // 最后一张图片可能需要部分裁剪
-          if (currentScrollY + viewportHeight > endPos) {
-            sourceHeight = endPos - currentScrollY;
-          }
+          nextScrollY = expectedScrollY;
         }
-
-        console.log('添加图片:', {
-          scrollY: currentScrollY,
-          nextScrollY,
-          sourceY,
-          sourceHeight,
-          viewportHeight,
-          relativeOffset
-        });
-
+        const isLastImage = nextScrollY >= endPos - viewportHeight;
+        if (isLastImage) {
+          // 最后一张图应该计算滚动距离为当前滚动位置 - 上一次滚动位置，相对截图起始点应该是可视窗口 - 滚动高度
+          sourceHeight = currentScrollY - images[images.length - 1].scrollY;
+        }
         // 添加到图片数组
         images.push({
           dataUrl: response.dataUrl,
           scrollY: currentScrollY,
           sourceY,
-          sourceHeight
+          sourceHeight,
+        });
+        console.log('添加图片:', {
+          scrollY: currentScrollY,
+          sourceY,
+          sourceHeight,
+          viewportHeight,
+          isLastImage
         });
 
         // 检查是否已完成全部捕获
-        if (nextScrollY >= endPos - viewportHeight) {
+        if (isLastImage) {
           // 合成最终图像
-          finishExtendedAreaCapture(
-            canvas,
-            ctx,
-            images,
-            startPos,
-            endPos,
-            left,
-            width,
-            relativeOffset
-          );
+          finishExtendedAreaCapture(images, startPos, endPos, left, width);
           return;
         }
 
@@ -505,8 +464,6 @@ function collectExtendedAreaImages(
         // 等待滚动完成并稳定
         setTimeout(() => {
           collectExtendedAreaImages(
-            canvas,
-            ctx,
             startPos,
             endPos,
             left,
@@ -608,15 +565,16 @@ function restoreUIElementsAfterCapture() {
 }
 
 // 完成扩展区域捕获
-function finishExtendedAreaCapture(
-  canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D,
-  images: Array<{ dataUrl: string; scrollY: number; sourceY: number; sourceHeight: number }>,
+async function finishExtendedAreaCapture(
+  images: Array<{
+    dataUrl: string;
+    sourceY: number;
+    sourceHeight: number;
+  }>,
   startScrollY: number,
   endScrollY: number,
   left: number,
-  width: number,
-  relativeOffset: number
+  width: number
 ) {
   // 更新进度显示
   if (scrollCaptureProgress) {
@@ -625,179 +583,147 @@ function finishExtendedAreaCapture(
       'ai-assistant-scroll-progress-text'
     );
     if (progressText) {
-      progressText.textContent = '正在合成扩展区域截图...';
+      progressText.textContent = '正在合成选区截图...';
     }
   }
+  const height = Math.abs(endScrollY - startScrollY);
+  // 创建画布
+  const canvas = document.createElement('canvas');
+  const dpr = window.devicePixelRatio || 1;
+  // 使用物理像素尺寸创建画布，确保高清显示
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    console.error('无法创建Canvas上下文');
+    cleanupExtendedScreenshot();
+    return;
+  }
+
+  // 使用白色背景填充Canvas
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // 处理并合成图像
-  const processImages = async () => {
-    try {
-      // 确保进度指示器显示
-      if (scrollCaptureProgress) {
-        scrollCaptureProgress.style.display = 'flex';
-        const progressText = document.getElementById(
-          'ai-assistant-scroll-progress-text'
-        );
-        if (progressText) {
-          progressText.textContent = '正在合成扩展区域截图...';
-        }
-      }
-
-      // 加载所有图像
-      const loadedImages = await Promise.all(
-        images.map((img) => {
-          return new Promise<{
-            img: HTMLImageElement;
-            scrollY: number;
-            sourceY: number;
-            sourceHeight: number;
-          }>(
-            (resolve, reject) => {
-              const image = new Image();
-              image.onload = () =>
-                resolve({
-                  img: image,
-                  scrollY: img.scrollY,
-                  sourceY: img.sourceY,
-                  sourceHeight: img.sourceHeight
-                });
-              image.onerror = () => reject(new Error('图像加载失败'));
-              image.src = img.dataUrl;
-            }
-          );
-        })
+  try {
+    // 确保进度指示器显示
+    if (scrollCaptureProgress) {
+      scrollCaptureProgress.style.display = 'flex';
+      const progressText = document.getElementById(
+        'ai-assistant-scroll-progress-text'
       );
-
-      // 获取设备像素比
-      const dpr = window.devicePixelRatio || 1;
-
-      // 边框宽度和安全边距
-      const borderWidth = 2;
-      const safeMargin = 4;
-
-      // 再次确保宽度不超出边界（防止浏览器窗口大小变化）
-      const adjustedWidth = Math.min(
-        width,
-        window.innerWidth - left - (borderWidth + safeMargin)
-      );
-      if (adjustedWidth !== width) {
-        // 如果宽度需要调整，重新设置canvas宽度
-        canvas.width = adjustedWidth * dpr;
-        // 重新填充白色背景
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (progressText) {
+        progressText.textContent = '正在合成扩展区域截图...';
       }
-
-      // 更新进度指示器
-      if (scrollCaptureProgress) {
-        const progressText = document.getElementById(
-          'ai-assistant-scroll-progress-text'
-        );
-        if (progressText) {
-          progressText.textContent = '正在合成最终图像...';
-        }
-      }
-
-      // 根据滚动位置将图像合到Canvas上
-      for (const { img, scrollY, sourceY, sourceHeight } of loadedImages) {
-        // 计算图像在Canvas中的位置
-        const sourceX = left * dpr;
-        const sourceWidth = adjustedWidth * dpr; // 使用调整后的宽度
-
-        // 使用预先计算好的源图Y坐标和高度，将像素比考虑进去
-        const actualSourceY = sourceY * dpr;
-        const actualSourceHeight = sourceHeight * dpr;
-
-        // 计算目标位置（相对于整个截图的开始位置）
-        const destY = (scrollY - (startScrollY - relativeOffset)) * dpr;
-
-        console.log('绘制图像:', {
-          scrollY,
-          destY: destY / dpr,
-          sourceY: actualSourceY / dpr,
-          sourceHeight: actualSourceHeight / dpr,
-        });
-
-        // 绘制图像到对应位置
-        try {
-          ctx.drawImage(
-            img,                // 源图像
-            sourceX,            // 源图像的x坐标
-            actualSourceY,      // 源图像的y坐标
-            sourceWidth,        // 源图像的宽度
-            actualSourceHeight, // 源图像的高度
-            0,                  // 目标canvas的x坐标
-            destY,              // 目标canvas的y坐标
-            canvas.width,       // 目标宽度（拉伸到canvas宽度）
-            actualSourceHeight  // 目标高度（保持原始高度）
-          );
-        } catch (err) {
-          console.error('绘制图片出错:', err);
-        }
-      }
-
-      // 裁剪到指定高度
-      const totalHeight = (endScrollY - startScrollY) * dpr;
-      const imageData = ctx.getImageData(0, 0, canvas.width, totalHeight);
-
-      // 创建新Canvas以适应正确的高度
-      const finalCanvas = document.createElement('canvas');
-      finalCanvas.width = canvas.width;
-      finalCanvas.height = totalHeight;
-      const finalCtx = finalCanvas.getContext('2d');
-
-      if (!finalCtx) {
-        throw new Error('无法创建最终Canvas上下文');
-      }
-
-      finalCtx.putImageData(imageData, 0, 0);
-
-      // 获取最终图像URL
-      const finalImageUrl = finalCanvas.toDataURL('image/png');
-
-      // 更新进度指示器
-      if (scrollCaptureProgress) {
-        const progressText = document.getElementById(
-          'ai-assistant-scroll-progress-text'
-        );
-        if (progressText) {
-          progressText.textContent = '截图完成，正在发送...';
-        }
-      }
-
-      // 发送到侧边栏
-      chrome.runtime.sendMessage(
-        {
-          action: 'openSidePanel',
-        },
-        () => {
-          setTimeout(() => {
-            chrome.runtime.sendMessage({
-              action: 'addScreenshot',
-              imageUrl: finalImageUrl,
-              text: '扩展区域截图',
-              addToInput: true,
-            });
-
-            // 显示成功提示
-            showDragCaptureToast('扩展区域截图已完成');
-
-            // 截图发送后清理资源
-            cleanupExtendedScreenshot();
-          }, 500);
-        }
-      );
-    } catch (error) {
-      console.error('处理扩展区域截图失败:', error);
-      showDragCaptureToast('截图处理失败，请重试');
-
-      // 错误时也需要清理资源
-      cleanupExtendedScreenshot();
     }
-  };
 
-  // 执行图像处理
-  processImages();
+    // 加载所有图像
+    const loadedImages = await Promise.all(
+      images.map((img) => {
+        return new Promise<{
+          img: HTMLImageElement;
+          sourceY: number;
+          sourceHeight: number;
+        }>((resolve, reject) => {
+          const image = new Image();
+          image.onload = () =>
+            resolve({
+              img: image,
+              sourceY: img.sourceY,
+              sourceHeight: img.sourceHeight,
+            });
+          image.onerror = () => reject(new Error('图像加载失败'));
+          image.src = img.dataUrl;
+        });
+      })
+    );
+
+    // 更新进度指示器
+    if (scrollCaptureProgress) {
+      const progressText = document.getElementById(
+        'ai-assistant-scroll-progress-text'
+      );
+      if (progressText) {
+        progressText.textContent = '正在合成最终图像...';
+      }
+    }
+    let destY = 0;
+    // 根据滚动位置将图像合到Canvas上
+    for (const { img, sourceY, sourceHeight } of loadedImages) {
+      console.log('绘制图像', {
+        img,
+        sourceY,
+        sourceHeight,
+        destY,
+      });
+      // 计算图像在Canvas中的位置，注意DPR计算
+      const sourceX = left * dpr;
+      const sourceWidth = width * dpr;
+
+      // 使用预先计算好的源图Y坐标和高度，正确处理DPR因素
+      const actualSourceY = sourceY * dpr;
+      const actualSourceHeight = sourceHeight * dpr;
+      // 目标Y位置也需要考虑DPR因素
+      const actualDestY = destY * dpr;
+
+      // 绘制图像到对应位置，确保正确处理DPR
+      ctx.drawImage(
+        img, // 源图像
+        sourceX, // 源图像的x坐标
+        actualSourceY, // 源图像的y坐标，已乘以DPR
+        sourceWidth, // 源图像的宽度，已乘以DPR
+        actualSourceHeight, // 源图像的高度，已乘以DPR
+        0, // 目标canvas的x坐标
+        actualDestY, // 目标canvas的y坐标，已乘以DPR
+        canvas.width, // 目标宽度（使用canvas宽度，已考虑DPR）
+        actualSourceHeight // 目标高度，已乘以DPR
+      );
+      destY += sourceHeight;
+    }
+
+    // 获取最终图像URL
+    const finalImageUrl = canvas.toDataURL('image/png');
+
+    // 更新进度指示器
+    if (scrollCaptureProgress) {
+      const progressText = document.getElementById(
+        'ai-assistant-scroll-progress-text'
+      );
+      if (progressText) {
+        progressText.textContent = '截图完成，正在发送...';
+      }
+    }
+
+    // 发送到侧边栏
+    chrome.runtime.sendMessage(
+      {
+        action: 'openSidePanel',
+      },
+      () => {
+        setTimeout(() => {
+          chrome.runtime.sendMessage({
+            action: 'addScreenshot',
+            imageUrl: finalImageUrl,
+            text: '扩展区域截图',
+            addToInput: true,
+          });
+
+          // 显示成功提示
+          showDragCaptureToast('扩展区域截图已完成');
+
+          // 截图发送后清理资源
+          cleanupExtendedScreenshot();
+        }, 500);
+      }
+    );
+  } catch (error) {
+    console.error('处理扩展区域截图失败:', error);
+    showDragCaptureToast('截图处理失败，请重试');
+
+    // 错误时也需要清理资源
+    cleanupExtendedScreenshot();
+  }
 }
 
 // 显示拖拽截图提示
@@ -1030,7 +956,7 @@ function startAutoScroll() {
 }
 
 // 处理扩展鼠标释放事件
-function handleExtendedMouseUp(e: MouseEvent) {
+function handleExtendedMouseUp() {
   if (!isExtendedSelecting) return;
 
   console.log('扩展选区结束:', endX, endY);
@@ -1052,7 +978,6 @@ function handleExtendedMouseUp(e: MouseEvent) {
     return;
   }
 
-  console.log('扩展选择框尺寸:', width, 'x', height);
   console.log(
     '文档坐标范围:',
     extendedSelectionStartY,
