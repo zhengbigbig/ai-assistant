@@ -24,7 +24,7 @@ export default defineContentScript({
           sendResponse({ text: selectedText });
         }
       } else if (message.action === 'startAreaScreenshot') {
-        // 直接开始扩展区域截图模式，不再显示选择按钮
+        // 直接开始选定区域截图模式，不再显示选择按钮
         console.log('Starting extended area screenshot mode');
         startExtendedAreaScreenshot();
         sendResponse({ success: true });
