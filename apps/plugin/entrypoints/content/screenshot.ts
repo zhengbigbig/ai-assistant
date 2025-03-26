@@ -344,7 +344,9 @@ function collectExtendedAreaImages(
         if (isLastImage && images.length > 1) {
           // 超长情况
           // 最后一张图应该计算滚动距离为当前滚动位置 - 上一次滚动位置，相对截图起始点应该是可视窗口 - 滚动高度
-          sourceHeight = Math.abs(currentScrollY - images[images.length - 1].scrollY);
+          sourceHeight = Math.abs(
+            currentScrollY - images[images.length - 1].scrollY
+          );
           sourceY = viewportHeight - sourceHeight;
         }
         if (areSingleImage) {
@@ -461,6 +463,8 @@ async function finishExtendedAreaCapture(
   width: number,
   areSingleImage: boolean
 ) {
+  // 显示成功提示
+  showDragCaptureToast('选定区域截图合并中...');
   const height = Math.abs(endScrollY - startScrollY);
   // 创建画布
   const canvas = document.createElement('canvas');
@@ -713,7 +717,19 @@ function handleExtendedMouseMove(e: MouseEvent) {
   // 更新鼠标当前位置（限制在窗口边界内）
   endX = Math.max(0, Math.min(e.clientX, window.innerWidth - 1));
   endY = Math.max(0, Math.min(e.clientY, window.innerHeight - 1));
-  extendedSelectionEndY = endY + window.scrollY;
+
+  // 获取页面实际高度
+  const maxScrollY =
+    Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight
+    ) - window.innerHeight;
+
+  // 限制extendedSelectionEndY不超过页面最大高度
+  extendedSelectionEndY = Math.min(
+    endY + window.scrollY,
+    maxScrollY + window.innerHeight
+  );
 
   // 检查是否需要自动滚动
   checkAutoScroll(e);
@@ -770,23 +786,41 @@ function startAutoScroll() {
     clearInterval(autoScrollIntervalId);
   }
 
+  // 获取页面实际高度
+  const maxScrollY =
+    Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight
+    ) - window.innerHeight;
+
   // 创建新的滚动定时器
   autoScrollIntervalId = window.setInterval(() => {
     // 计算新的滚动位置
     const scrollAmount = autoScrollSpeed * autoScrollDirection;
-    window.scrollBy(0, scrollAmount);
+    const newScrollY = window.scrollY + scrollAmount;
 
-    // 更新结束位置以反映新的滚动位置
-    extendedSelectionEndY += scrollAmount;
+    // 限制滚动范围
+    if (newScrollY >= 0 && newScrollY <= maxScrollY) {
+      window.scrollBy(0, scrollAmount);
 
-    // 更新选择框
-    updateSelectionBox({
-      startX,
-      endX,
-      startY: extendedSelectionStartY,
-      endY: extendedSelectionEndY,
-      scrollY: window.scrollY,
-    });
+      // 更新结束位置以反映新的滚动位置
+      extendedSelectionEndY = Math.min(
+        extendedSelectionEndY + scrollAmount,
+        maxScrollY + window.innerHeight
+      );
+
+      // 更新选择框
+      updateSelectionBox({
+        startX,
+        endX,
+        startY: extendedSelectionStartY,
+        endY: extendedSelectionEndY,
+        scrollY: window.scrollY,
+      });
+    } else {
+      // 如果超出范围，停止自动滚动
+      stopAutoScroll();
+    }
   }, 16); // 约60fps
 }
 
