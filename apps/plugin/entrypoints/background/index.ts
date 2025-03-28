@@ -32,6 +32,13 @@ export default defineBackground(() => {
         title: '截取选定区域',
         contexts: ['page'], // 在任何页面上显示
       });
+
+      // 添加"打开设置"菜单项
+      chrome.contextMenus.create({
+        id: 'openOptions',
+        title: '打开设置',
+        contexts: ['action'], // 在扩展图标的右键菜单中显示
+      });
     });
 
     // 处理上下文菜单点击
@@ -47,6 +54,9 @@ export default defineBackground(() => {
       } else if (info.menuItemId === 'captureArea') {
         // 启动区域截图模式
         startAreaScreenshot(tab.id);
+      } else if (info.menuItemId === 'openOptions') {
+        // 打开选项页面
+        chrome.runtime.openOptionsPage();
       }
     });
   }
@@ -256,6 +266,10 @@ export default defineBackground(() => {
         console.error('Missing width or height in resizeWindow message');
         sendResponse({ success: false, error: '缺少宽度或高度参数' });
       }
+    } else if (message.action === 'openOptionsPage') {
+      // 打开选项页面
+      chrome.runtime.openOptionsPage();
+      sendResponse({ success: true });
     }
     return true;
   });

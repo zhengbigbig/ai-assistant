@@ -1,16 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  ChatIcon,
-  HelpIcon,
-  ScreenshotIcon,
-  WindowResizeIcon,
-  CopyIcon,
-  QuestionIcon,
-  FeedbackIcon,
-  SettingsIcon,
-  MicrophoneIcon,
   AtSignIcon,
-  SendIcon
+  ChatIcon,
+  MicrophoneIcon,
+  ScreenshotIcon,
+  SendIcon,
+  SettingsIcon,
+  WindowResizeIcon
 } from '../Icons';
 import WindowResizer from '../WindowResizer';
 import './styles.css';
@@ -210,6 +206,14 @@ const SidePanel: React.FC = () => {
     setShowResizer(true);
   };
 
+  // 处理设置按钮点击
+  const handleOpenSettings = () => {
+    console.log('Settings button clicked');
+    chrome.runtime.sendMessage({ action: 'openOptionsPage' }, (response) => {
+      console.log('openOptionsPage response:', response);
+    });
+  };
+
   return (
     <div className="sider-panel">
       {/* 窗口缩放组件 */}
@@ -320,6 +324,14 @@ const SidePanel: React.FC = () => {
         >
           <WindowResizeIcon width={20} height={20} />
           <span className="sr-only">窗口缩放</span>
+        </button>
+        <button
+          className="control-btn settings"
+          onClick={handleOpenSettings}
+          title="设置选项"
+        >
+          <SettingsIcon width={20} height={20} />
+          <span className="sr-only">设置</span>
         </button>
       </div>
     </div>
