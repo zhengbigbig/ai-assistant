@@ -3,6 +3,7 @@
  * 处理插件安装、事件监听和侧边栏交互
  */
 import { defineBackground } from 'wxt/sandbox';
+import { resizeWindow } from './windowResizer';
 
 export default defineBackground(() => {
   console.log('AI 助手后台服务已启动');
@@ -244,6 +245,17 @@ export default defineBackground(() => {
         }
       });
       sendResponse({ success: true });
+    } else if (message.action === 'resizeWindow') {
+      console.log('Handling resizeWindow action');
+
+      // 调整窗口尺寸
+      if (message.width && message.height) {
+        resizeWindow(message.width, message.height);
+        sendResponse({ success: true });
+      } else {
+        console.error('Missing width or height in resizeWindow message');
+        sendResponse({ success: false, error: '缺少宽度或高度参数' });
+      }
     }
     return true;
   });

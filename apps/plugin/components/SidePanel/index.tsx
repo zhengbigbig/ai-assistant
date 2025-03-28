@@ -3,6 +3,7 @@ import {
   ChatIcon,
   HelpIcon,
   ScreenshotIcon,
+  WindowResizeIcon,
   CopyIcon,
   QuestionIcon,
   FeedbackIcon,
@@ -11,6 +12,7 @@ import {
   AtSignIcon,
   SendIcon
 } from '../Icons';
+import WindowResizer from '../WindowResizer';
 import './styles.css';
 
 // 定义消息类型
@@ -45,6 +47,8 @@ const SidePanel: React.FC = () => {
     "为孩子们建议10种创意万圣节服装 →",
     "概述学习个人理财的初学者路线图 →"
   ];
+
+  const [showResizer, setShowResizer] = useState(false);
 
   // 从存储中加载消息并监听新消息
   useEffect(() => {
@@ -200,8 +204,20 @@ const SidePanel: React.FC = () => {
     });
   };
 
+  // 处理窗口缩放按钮点击
+  const handleWindowResize = () => {
+    console.log('Window resize button clicked');
+    setShowResizer(true);
+  };
+
   return (
     <div className="sider-panel">
+      {/* 窗口缩放组件 */}
+      <WindowResizer
+        isOpen={showResizer}
+        onClose={() => setShowResizer(false)}
+      />
+
       <div className="chat-container">
         {/* 聊天内容区域 */}
         <div className="messages-container">
@@ -278,10 +294,6 @@ const SidePanel: React.FC = () => {
           <ChatIcon width={20} height={20} />
           <span className="sr-only">对话</span>
         </button>
-        <button className="control-btn help">
-          <HelpIcon width={20} height={20} />
-          <span className="sr-only">帮助</span>
-        </button>
         <button
           className="control-btn screenshot"
           onClick={handleScreenshot}
@@ -301,21 +313,13 @@ const SidePanel: React.FC = () => {
           </svg>
           <span className="sr-only">区域截图</span>
         </button>
-        <button className="control-btn copy">
-          <CopyIcon width={20} height={20} />
-          <span className="sr-only">复制</span>
-        </button>
-        <button className="control-btn question">
-          <QuestionIcon width={20} height={20} />
-          <span className="sr-only">问题</span>
-        </button>
-        <button className="control-btn feedback">
-          <FeedbackIcon width={20} height={20} />
-          <span className="sr-only">反馈</span>
-        </button>
-        <button className="control-btn settings">
-          <SettingsIcon width={20} height={20} />
-          <span className="sr-only">设置</span>
+        <button
+          className="control-btn window-resize"
+          onClick={handleWindowResize}
+          title="窗口缩放"
+        >
+          <WindowResizeIcon width={20} height={20} />
+          <span className="sr-only">窗口缩放</span>
         </button>
       </div>
     </div>

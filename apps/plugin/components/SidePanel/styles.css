@@ -245,3 +245,14 @@
   color: var(--primary-color);
   background-color: var(--button-hover);
 }
+
+/* 窗口缩放按钮样式 */
+.control-btn.window-resize {
+  color: var(--gray-500);
+  background: transparent;
+}
+
+.control-btn.window-resize:hover {
+  color: var(--primary-color);
+  background-color: var(--button-hover);
+}

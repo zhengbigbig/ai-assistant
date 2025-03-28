@@ -87,8 +87,7 @@ export const CopyIcon: React.FC<IconProps> = ({ width = 24, height = 24, color =
     strokeLinejoin="round"
     className={className}
   >
-    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    <path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3m8 0h3a2 2 0 002-2v-3" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
@@ -217,5 +216,15 @@ export const SendIcon: React.FC<IconProps> = ({ width = 24, height = 24, color =
   >
     <line x1="22" y1="2" x2="11" y2="13"></line>
     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+  </svg>
+);
+
+export const WindowResizeIcon = ({ width = 24, height = 24, color = 'currentColor' }) => (
+  <svg width={width} height={height} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="3" width="18" height="18" rx="2" stroke={color} strokeWidth="2" />
+    <path d="M3 8h18" stroke={color} strokeWidth="2" />
+    <path d="M9 3v5" stroke={color} strokeWidth="2" />
+    <path d="M15 8L21 14" stroke={color} strokeWidth="2" />
+    <path d="M21 8L15 14" stroke={color} strokeWidth="2" />
   </svg>
 );
