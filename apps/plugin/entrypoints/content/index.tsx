@@ -1,16 +1,35 @@
 import { defineContentScript } from 'wxt/sandbox';
 import { startExtendedAreaScreenshot } from './screenshot';
-import { setupTextSelectionHandler } from './textSelection';
+import { createRoot } from 'react-dom/client';
+import { createShadowRootUi } from 'wxt/client';
+import App from './App';
 
 // 定义内容脚本
 export default defineContentScript({
-  matches: ['http://*/*', 'https://*/*'], // 匹配所有网页
-  runAt: 'document_end', // 在 DOM 加载完成后运行
-  main() {
-    console.log('AI Assistant content script loaded');
+  matches: ['*://*/*'],
+  async main(ctx) {
+    console.log('Hello content script.');
 
-    // 添加划词处理
-    setupTextSelectionHandler();
+    const ui = await createShadowRootUi(ctx, {
+      name: 'ai-assistant-content-script',
+      position: 'inline',
+      anchor: 'body',
+      append: 'first',
+      onMount: (container) => {
+        // Don't mount react app directly on <body>
+        const wrapper = document.createElement('div');
+        container.append(wrapper);
+
+        const root = createRoot(wrapper);
+        root.render(<App />);
+        return { root, wrapper };
+      },
+      onRemove: (elements) => {
+        elements?.root.unmount();
+        elements?.wrapper.remove();
+      },
+    });
+    ui.mount();
 
     // 监听来自后台的消息
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -33,5 +52,3 @@ export default defineContentScript({
     });
   },
 });
-
-

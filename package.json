@@ -21,14 +21,13 @@
   "dependencies": {
     "@ant-design/cssinjs": "^1.23.0",
     "@ant-design/icons": "^5.6.1",
-    "antd": "^5.24.3",
+    "antd": "^5.24.4",
     "next": "~15.1.4",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-is": "19.0.0",
     "react-router-dom": "6.29.0",
-    "styled-components": "5.3.6",
-    "wxt": "^0.19.29"
+    "styled-components": "5.3.6"
   },
   "devDependencies": {
     "@babel/core": "^7.14.5",
@@ -73,7 +72,8 @@
     "verdaccio": "^6.0.5",
     "vite": "^6.2.2",
     "vite-plugin-dts": "~4.5.0",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "wxt": "^0.20.0"
   },
   "nx": {
     "includedScripts": [],
