@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Space, Modal } from 'antd';
 import styled from 'styled-components';
-import { TranslationOutlined, FileTextOutlined, ArrowRightOutlined } from '@ant-design/icons';
+import {
+  TranslationOutlined,
+  FileTextOutlined,
+  ArrowRightOutlined,
+} from '@ant-design/icons';
 
 const TOOLBAR_HEIGHT = 40;
 const TOOLBAR_DISTANCE = 5;
@@ -16,16 +20,7 @@ interface TextSelectionToolbarProps {
 
 // 工具栏样式（基于Modal）
 const StyledModal = styled(Modal)`
-  &&& {
-    position: absolute !important;
-    top: ${props => props.style?.top}px;
-    left: ${props => props.style?.left}px;
-    transform: translate(-50%, 0);
-    padding: 0;
-    margin: 0;
-  }
-
-  &&& .ant-modal-content {
+  .ant-modal-content {
     background-color: #ffffff;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -33,41 +28,37 @@ const StyledModal = styled(Modal)`
     padding: 0;
   }
 
-  &&& .ant-modal-body {
+  .ant-modal-body {
     padding: 2px 4px;
   }
 `;
 
 // 按钮样式
 const ActionButton = styled(Button)`
-  &&& {
-    border: none;
-    font-size: 14px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 0 10px;
+  border: none;
+  font-size: 14px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 10px;
 
-    &:hover {
-      background-color: #f5f5f5;
-      color: #6e59f2;
-    }
+  &:hover {
+    background-color: #f5f5f5;
+    color: #6e59f2;
+  }
 
-    .anticon {
-      font-size: 16px;
-      margin-right: 4px;
-    }
+  .anticon {
+    font-size: 16px;
+    margin-right: 4px;
   }
 `;
 
 const ButtonsContainer = styled(Space)`
-  &&& {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    justify-content: space-between;
-  }
+  display: flex;
+  align-items: center;
+  width: 100%;
+  justify-content: space-between;
 `;
 
 const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
@@ -75,9 +66,12 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
   selectedText,
   position,
   onClose,
-  onShowChat
+  onShowChat,
 }) => {
-  const [modalPosition, setModalPosition] = useState({ x: position.x, y: position.y + 20 });
+  const [modalPosition, setModalPosition] = useState({
+    x: position.x,
+    y: position.y + 20,
+  });
 
   // 处理各种操作
   const handleAction = (action: string) => {
@@ -89,18 +83,22 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
 
     // 发送相应的命令和文本到侧边栏
     setTimeout(() => {
-      const messagePrefix = action === 'translate'
-        ? '翻译: '
-        : action === 'explain'
+      const messagePrefix =
+        action === 'translate'
+          ? '翻译: '
+          : action === 'explain'
           ? '解释: '
           : '';
 
-      chrome.runtime.sendMessage({
-        action: 'addSelectedText',
-        text: `${messagePrefix}${selectedText}`
-      }, (response) => {
-        console.log('发送划词和操作到侧边栏:', response);
-      });
+      chrome.runtime.sendMessage(
+        {
+          action: 'addSelectedText',
+          text: `${messagePrefix}${selectedText}`,
+        },
+        (response) => {
+          console.log('发送划词和操作到侧边栏:', response);
+        }
+      );
     }, 500);
   };
 
@@ -119,7 +117,7 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
         const selectionTop = rect.top + window.scrollY;
 
         // 计算工具栏的left位置：划词区域left + 划词区域宽度的一半
-        const newX = selectionLeft + (rect.width / 2);
+        const newX = selectionLeft + rect.width / 2;
 
         // 默认计算top位置：划词区域top + 划词区域高度
         let newY = selectionTop + rect.height + TOOLBAR_DISTANCE;
@@ -148,18 +146,12 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
       open={open}
       closable={false}
       footer={null}
-      maskClosable={true}
       onCancel={onClose}
       mask={false}
       style={modalStyle}
-      width={180}
-      // 渲染到shadowRoot
+      width={220}
       getContainer={false}
-      modalRender={(modal) => (
-        <div style={{ background: '#fff', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)' }}>
-          {modal}
-        </div>
-      )}
+      modalRender={(modal) => <div>{modal}</div>}
     >
       <ButtonsContainer size={0} direction="horizontal">
         <ActionButton

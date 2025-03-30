@@ -13,11 +13,16 @@ interface ChatPopupProps {
 }
 
 const StyledModal = styled(Modal)`
+  position: fixed !important;
+  top: ${props => props.style?.top}px;
+  left: ${props => props.style?.left}px;
+  width: 320px;
+
+  .ant-modal {
+    position: absolute !important;
+  }
+
   .ant-modal-content {
-    position: fixed;
-    left: ${props => props.style?.left}px;
-    top: ${props => props.style?.top}px;
-    width: 320px;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
@@ -126,10 +131,12 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
       maskClosable={false}
       style={{
         left: modalPosition.x,
-        top: modalPosition.y
+        top: modalPosition.y,
+        position: 'fixed'
       }}
       width={320}
       getContainer={false}
+      modalRender={(modal) => <div>{modal}</div>}
     >
       <div style={{ marginBottom: 8 }}>
         <Text type="secondary" style={{ fontSize: 12 }}>已选中文本内容：</Text>
