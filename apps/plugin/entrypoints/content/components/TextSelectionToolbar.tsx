@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Button, Space, Modal } from 'antd';
 import styled from 'styled-components';
 
+const TOOLBAR_HEIGHT = 40;
+const TOOLBAR_DISTANCE = 5;
+
 interface TextSelectionToolbarProps {
   open: boolean;
   selectedText: string;
@@ -43,18 +46,24 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
       const selection = window.getSelection();
       const range = selection?.getRangeAt(0);
       const rect = range?.getBoundingClientRect();
+      console.log('rect',rect,window.scrollY)
       if (rect) {
-        let newX = position.x;
-        let newY = position.y + rect?.y; // 默认在选择区域下方
-        // 确保不超出右边界
-        if (newX + rect.width > window.innerWidth) {
-          newX = window.innerWidth - rect.width - 10;
+        // 划词区域相对于页面的位置
+        const selectionLeft = rect.left + window.scrollX;
+        const selectionTop = rect.top + window.scrollY;
+
+        // 计算工具栏的left位置：划词区域left + 划词区域宽度的一半
+        const newX = selectionLeft + (rect.width / 2);
+
+        // 默认计算top位置：划词区域top + 划词区域高度
+        let newY = selectionTop + rect.height + TOOLBAR_DISTANCE;
+
+        // 如果top已经超出了边界，则计算为划词区域top - 工具栏高度
+
+        if (newY + TOOLBAR_HEIGHT > window.innerHeight + window.scrollY) {
+          newY = selectionTop - TOOLBAR_HEIGHT - TOOLBAR_DISTANCE;
         }
 
-        // 确保不超出下边界，如果超出则显示在选区上方
-        if (newY + rect.height > window.innerHeight) {
-          newY = position.y - rect.height - 10;
-        }
         console.log('newX', newX, 'newY', newY);
         setModalPosition({ x: newX, y: newY });
       }
