@@ -6,7 +6,7 @@ const { TextArea } = Input;
 const { Text } = Typography;
 
 interface ChatPopupProps {
-  visible: boolean;
+  open: boolean;
   position: { x: number; y: number };
   selectedText: string;
   onClose: () => void;
@@ -40,7 +40,7 @@ const StyledModal = styled(Modal)`
 `;
 
 const ChatPopup: React.FC<ChatPopupProps> = ({
-  visible,
+  open,
   position,
   selectedText,
   onClose
@@ -106,7 +106,7 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
   return (
     <StyledModal
       title="AI助手"
-      open={visible}
+      open={open}
       onCancel={onClose}
       mask={false}
       footer={[
@@ -129,6 +129,7 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
         top: modalPosition.y
       }}
       width={320}
+      getContainer={false}
     >
       <div style={{ marginBottom: 8 }}>
         <Text type="secondary" style={{ fontSize: 12 }}>已选中文本内容：</Text>

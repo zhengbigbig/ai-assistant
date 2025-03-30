@@ -17,11 +17,14 @@ export default defineContentScript({
       append: 'first',
       zIndex: 9999,
       onMount: (container) => {
+        // 存储shadowRoot引用
+        const globalShadowRoot = container.getRootNode() as ShadowRoot;
+
         // Don't mount react app directly on <body>
         const wrapper = document.createElement('div');
         container.append(wrapper);
         const root = createRoot(wrapper);
-        root.render(<App />);
+        root.render(<App shadowRoot={globalShadowRoot} />);
         return { root, wrapper };
       },
       onRemove: (elements) => {

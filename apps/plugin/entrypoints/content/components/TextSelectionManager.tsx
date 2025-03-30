@@ -87,7 +87,7 @@ const TextSelectionManager: React.FC = () => {
 
       {showChatPopup && (
         <ChatPopup
-          visible={showChatPopup}
+          open={showChatPopup}
           position={position}
           selectedText={selectedText}
           onClose={handleCloseChatPopup}
