@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Button } from 'antd';
+import { Modal, Input, Button, Typography } from 'antd';
 import styled from 'styled-components';
 
 const { TextArea } = Input;
+const { Text } = Typography;
 
 interface ChatPopupProps {
   visible: boolean;
@@ -35,10 +36,7 @@ const StyledModal = styled(Modal)`
     padding: 8px 16px 12px;
   }
 
-  // 移除遮罩层
-  .ant-modal-mask {
-    display: none;
-  }
+  // 移除遮罩层样式已通过mask={false}属性设置
 `;
 
 const ChatPopup: React.FC<ChatPopupProps> = ({
@@ -107,9 +105,10 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
 
   return (
     <StyledModal
-      title="发送到AI助手"
+      title="AI助手"
       open={visible}
       onCancel={onClose}
+      mask={false}
       footer={[
         <Button key="cancel" onClick={onClose}>
           取消
@@ -131,11 +130,14 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
       }}
       width={320}
     >
+      <div style={{ marginBottom: 8 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>已选中文本内容：</Text>
+      </div>
       <TextArea
         autoSize={{ minRows: 3, maxRows: 5 }}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: 8 }}
         placeholder="编辑消息内容..."
       />
     </StyledModal>

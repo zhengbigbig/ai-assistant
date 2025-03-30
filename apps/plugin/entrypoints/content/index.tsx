@@ -12,14 +12,14 @@ export default defineContentScript({
 
     const ui = await createShadowRootUi(ctx, {
       name: 'ai-assistant-content-script',
-      position: 'inline',
+      position: 'overlay',
       anchor: 'body',
       append: 'first',
+      zIndex: 9999,
       onMount: (container) => {
         // Don't mount react app directly on <body>
         const wrapper = document.createElement('div');
         container.append(wrapper);
-
         const root = createRoot(wrapper);
         root.render(<App />);
         return { root, wrapper };

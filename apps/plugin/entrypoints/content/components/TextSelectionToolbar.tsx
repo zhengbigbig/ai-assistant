@@ -3,6 +3,7 @@ import { Button, Space, Modal } from 'antd';
 import styled from 'styled-components';
 
 interface TextSelectionToolbarProps {
+  open: boolean;
   selectedText: string;
   position: { x: number; y: number };
   onClose: () => void;
@@ -11,41 +12,20 @@ interface TextSelectionToolbarProps {
 
 // 工具栏样式（基于Modal）
 const StyledModal = styled(Modal)`
-  .ant-modal-content {
-    position: fixed;
-    left: ${props => props.style?.left}px;
-    top: ${props => props.style?.top}px;
-    padding: 8px 12px;
-    width: auto;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  }
-
-  .ant-modal-body {
-    padding: 0;
-    display: flex;
-    align-items: center;
-  }
-
-  // 隐藏标题和页脚
-  .ant-modal-header, .ant-modal-footer {
-    display: none;
-  }
-
-  // 移除遮罩层
-  .ant-modal-mask {
-    display: none;
+  .ant-modal {
+    position: absolute !important;
   }
 `;
 
 const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
+  open,
   selectedText,
   position,
   onClose,
   onShowChat
 }) => {
   const [modalPosition, setModalPosition] = useState({ x: position.x, y: position.y + 20 });
-
+  console.log('open',open)
   // 处理发送文本到AI助手
   const handleSendToAI = () => {
     // 关闭工具栏
@@ -59,12 +39,13 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
   useEffect(() => {
     // 延迟获取DOM的宽高，确保Modal已渲染
     const timer = setTimeout(() => {
-      const modalElement = document.querySelector('.ant-modal-content') as HTMLElement;
-      if (modalElement) {
-        const rect = modalElement.getBoundingClientRect();
+      // 获取选区宽高
+      const selection = window.getSelection();
+      const range = selection?.getRangeAt(0);
+      const rect = range?.getBoundingClientRect();
+      if (rect) {
         let newX = position.x;
-        let newY = position.y + 20; // 默认在选择区域下方
-
+        let newY = position.y + rect?.y; // 默认在选择区域下方
         // 确保不超出右边界
         if (newX + rect.width > window.innerWidth) {
           newX = window.innerWidth - rect.width - 10;
@@ -74,7 +55,7 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
         if (newY + rect.height > window.innerHeight) {
           newY = position.y - rect.height - 10;
         }
-
+        console.log('newX', newX, 'newY', newY);
         setModalPosition({ x: newX, y: newY });
       }
     }, 0);
@@ -84,18 +65,21 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
 
   return (
     <StyledModal
-      open={true}
+      open={open}
       closable={false}
       footer={null}
       maskClosable={true}
       onCancel={onClose}
+      mask={false}
       style={{
         left: modalPosition.x,
-        top: modalPosition.y
+        top: modalPosition.y,
+        position: 'absolute',
       }}
-      width="auto"
+      // 渲染到shadowRoot
+      getContainer={false}
     >
-      <Space>
+      <Space size={4}>
         <Button
           type="primary"
           size="small"
@@ -103,6 +87,12 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
           style={{ backgroundColor: '#6e59f2' }}
         >
           发送到AI助手
+        </Button>
+        <Button
+          size="small"
+          onClick={handleSendToAI}
+        >
+          提问
         </Button>
       </Space>
     </StyledModal>
