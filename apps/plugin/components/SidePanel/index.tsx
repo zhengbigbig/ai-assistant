@@ -63,6 +63,22 @@ const SidePanel: React.FC = () => {
           const newValue = prev ? `${prev}\n\n${message.text}` : message.text;
           return newValue;
         });
+
+        // 如果需要立即发送消息
+        if (message.sendImmediately) {
+          // 延迟一小段时间，确保输入框已更新
+          setTimeout(() => {
+            sendMessage(message.text);
+          }, 100);
+        }
+
+        sendResponse({ success: true });
+      } else if (message.action === 'syncTextToInput' && message.text) {
+        // 只同步文本到输入框，不发送
+        setInputValue((prev) => {
+          const newValue = prev ? `${prev}\n\n${message.text}` : message.text;
+          return newValue;
+        });
         sendResponse({ success: true });
       } else if (message.action === 'addScreenshot' && message.imageUrl) {
         // 检查是否要添加到输入框

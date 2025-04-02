@@ -39,6 +39,7 @@ const TextSelectionManager: React.FC = () => {
         setShowToolbar(true);
       } else {
         console.log('没有选中文本或文本为空');
+        setShowToolbar(false);
       }
     }, 10);
   };

@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useClickAway } from 'ahooks';
 import { Button, Space, Modal } from 'antd';
 import styled from 'styled-components';
 import {
@@ -73,33 +74,56 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
     y: position.y + 20,
   });
 
+  // 当工具栏显示时，同步文本到Sider但不发送
+  useEffect(() => {
+    if (open && selectedText) {
+      // 只同步数据到Sider，但不发送
+      chrome.runtime.sendMessage(
+        {
+          action: 'syncSelectedText',
+          text: selectedText,
+        },
+        (response) => {
+          console.log('同步划词数据到侧边栏:', response);
+        }
+      );
+    }
+  }, [open, selectedText]);
+
   // 处理各种操作
-  const handleAction = (action: string) => {
-    // 关闭工具栏
+  const handleAction = (e: React.MouseEvent, action: string) => {
+    // 阻止事件冒泡，防止触发全局点击事件
+    e.stopPropagation();
+    e.preventDefault();
+    console.log('handleAction', action);
+    // 立即关闭工具栏
     onClose();
 
-    // 显示聊天弹窗
-    onShowChat();
-
-    // 发送相应的命令和文本到侧边栏
-    setTimeout(() => {
-      const messagePrefix =
-        action === 'translate'
-          ? '翻译: '
-          : action === 'explain'
-          ? '解释: '
-          : '';
+    // 处理具体操作
+    if (action === 'chat') {
+      chrome.runtime.sendMessage(
+        {
+          action: 'sendSelectedText',
+          text: selectedText,
+        },
+        (response) => {
+          console.log('发送划词到侧边栏并立即发送:', response);
+        }
+      );
+    } else {
+      onShowChat();
+      const messagePrefix = action === 'translate' ? '翻译: ' : '解释: ';
 
       chrome.runtime.sendMessage(
         {
-          action: 'addSelectedText',
+          action: 'syncSelectedText',
           text: `${messagePrefix}${selectedText}`,
         },
         (response) => {
-          console.log('发送划词和操作到侧边栏:', response);
+          console.log('发送划词和操作到侧边栏输入框:', response);
         }
       );
-    }, 500);
+    }
   };
 
   // 计算Modal位置
@@ -108,7 +132,7 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
     const timer = setTimeout(() => {
       // 获取选区宽高
       const selection = window.getSelection();
-      const range = selection?.getRangeAt(0);
+      const range = selection?.getRangeAt?.(0);
       const rect = range?.getBoundingClientRect();
 
       if (rect) {
@@ -149,28 +173,33 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
       onCancel={onClose}
       mask={false}
       style={modalStyle}
-      width={220}
+      width={240}
       getContainer={false}
-      modalRender={(modal) => <div>{modal}</div>}
     >
-      <ButtonsContainer size={0} direction="horizontal">
+      <ButtonsContainer
+        size={0}
+        direction="horizontal"
+      >
         <ActionButton
           type="text"
-          onClick={() => handleAction('translate')}
+          size="small"
+          onMouseUp={(e) => handleAction(e, 'translate')}
           icon={<TranslationOutlined />}
         >
           翻译
         </ActionButton>
         <ActionButton
           type="text"
-          onClick={() => handleAction('explain')}
+          size="small"
+          onMouseUp={(e) => handleAction(e, 'explain')}
           icon={<FileTextOutlined />}
         >
           解释
         </ActionButton>
         <ActionButton
           type="text"
-          onClick={() => handleAction('chat')}
+          size="small"
+          onMouseUp={(e) => handleAction(e, 'chat')}
           icon={<ArrowRightOutlined />}
         >
           发送

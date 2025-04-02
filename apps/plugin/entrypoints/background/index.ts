@@ -226,6 +226,55 @@ export default defineBackground(() => {
         }
       });
       sendResponse({ success: true });
+    } else if (message.action === 'syncSelectedText') {
+      // 只同步文本到侧边栏输入框，不发送
+      console.log('同步划词数据到侧边栏输入框:', message.text);
+      // 先打开侧边栏
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          chrome.sidePanel.open({ tabId: tabs[0].id })
+            .then(() => {
+              // 同步文本到侧边栏输入框
+              chrome.runtime.sendMessage({
+                action: 'syncTextToInput',
+                text: message.text
+              });
+              sendResponse({ success: true });
+            })
+            .catch(err => {
+              console.error('同步划词数据失败:', err);
+              sendResponse({ error: err.message });
+            });
+        } else {
+          sendResponse({ error: '无法获取当前标签页' });
+        }
+      });
+      return true; // 保持消息通道打开以进行异步响应
+    } else if (message.action === 'sendSelectedText') {
+      // 发送文本到侧边栏并立即发送
+      console.log('发送划词数据到侧边栏并立即发送:', message.text);
+      // 先打开侧边栏
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          chrome.sidePanel.open({ tabId: tabs[0].id })
+            .then(() => {
+              // 发送文本到侧边栏并立即发送
+              chrome.runtime.sendMessage({
+                action: 'addSelectedText',
+                text: message.text,
+                sendImmediately: true
+              });
+              sendResponse({ success: true });
+            })
+            .catch(err => {
+              console.error('发送划词数据失败:', err);
+              sendResponse({ error: err.message });
+            });
+        } else {
+          sendResponse({ error: '无法获取当前标签页' });
+        }
+      });
+      return true; // 保持消息通道打开以进行异步响应
     } else if (message.action === 'getTabId') {
       // 返回当前标签页ID
       if (sender.tab?.id) {
