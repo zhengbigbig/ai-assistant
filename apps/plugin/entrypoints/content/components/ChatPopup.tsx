@@ -1,126 +1,207 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useClickAway } from 'ahooks';
-import { Modal, Input, Button, Typography } from 'antd';
+import {
+  BookOutlined,
+  CloseOutlined,
+  CopyOutlined,
+  PushpinFilled,
+  PushpinOutlined,
+  ReadOutlined,
+} from '@ant-design/icons';
+import { Button, Modal, Space, Typography, message } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
-const { TextArea } = Input;
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
-const POPUP_HEIGHT = 200; // 估计的弹窗高度
-const POPUP_DISTANCE = 5; // 与选区的距离
+const POPUP_WIDTH = 500;
+const POPUP_HEIGHT = 500;
+const POPUP_DISTANCE = 5;
 
 interface ChatPopupProps {
   open: boolean;
   position: { x: number; y: number };
   selectedText: string;
   onClose: () => void;
+  title?: string;
+  onPinnedChange: (pinned: boolean) => void;
 }
 
 const StyledModal = styled(Modal)`
   position: fixed !important;
-  top: ${props => props.style?.top}px;
-  left: ${props => props.style?.left}px;
-  width: 320px;
-
-  .ant-modal {
-    position: absolute !important;
-  }
+  top: ${(props) => props.style?.top}px;
+  left: ${(props) => props.style?.left}px;
+  width: ${POPUP_WIDTH}px !important;
 
   .ant-modal-content {
+    padding: 16px;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-
-  .ant-modal-header {
-    border-bottom: none;
-    padding: 12px 16px;
+    height: ${POPUP_HEIGHT}px;
+    display: flex;
+    flex-direction: column;
   }
 
   .ant-modal-body {
-    padding: 12px 16px;
+    padding: 0;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
-  .ant-modal-footer {
-    border-top: none;
-    padding: 8px 16px 12px;
+  .ant-modal-title {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
+`;
 
-  // 移除遮罩层样式已通过mask={false}属性设置
+const ContentWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`;
+
+const QuestionBlock = styled.div`
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 8px;
+`;
+
+const AnswerBlock = styled.div`
+  position: relative;
+  padding: 12px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+`;
+
+const ModelSelector = styled.div`
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
 `;
 
 const ChatPopup: React.FC<ChatPopupProps> = ({
   open,
   position,
   selectedText,
-  onClose
+  onClose,
+  title = '总结',
+  onPinnedChange,
 }) => {
-  // 允许用户编辑选中的文本
-  const [text, setText] = useState(selectedText);
-  const [modalPosition, setModalPosition] = useState({ x: position.x, y: position.y + 20 });
-  const [sending, setSending] = useState(false);
-
-  // 弹窗引用
-  const popupRef = useRef<HTMLDivElement>(null);
-
-  // 使用 useClickAway 监听点击弹窗外部的事件
-  useClickAway(() => {
-    if (open) {
-      console.log('点击聊天弹窗外部，关闭弹窗');
-      onClose();
-    }
-  }, () => {
-    // 返回要监听的元素，聊天弹窗使用Modal渲染
-    return document.querySelector('.ant-modal-content');
+  const [isPinned, setIsPinned] = useState(false);
+  const [modalPosition, setModalPosition] = useState({
+    x: position.x,
+    y: position.y,
   });
+  const [currentModel, setCurrentModel] = useState('GPT-4');
+  const [isReading, setIsReading] = useState(false);
+  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // 发送消息
-  const handleSend = () => {
-    // 防止重复发送
-    if (sending) return;
-    setSending(true);
+  // Mock 回答内容
+  const mockAnswer =
+    '这是一个模拟的 AI 回答内容。根据您的问题，我们可以从以下几个方面进行分析...';
 
-    // 发送消息到侧边栏
-    chrome.runtime.sendMessage({
-      action: 'sendSelectedText',
-      text: text.trim()
-    }, () => {
-      console.log('已发送消息到侧边栏:', text);
-      // 重置状态
-      setSending(false);
-      // 关闭弹窗
-      onClose();
-    });
+  // 继续聊天，同步到 Sider
+  const handleContinueChat = () => {
+    chrome.runtime.sendMessage(
+      {
+        action: 'createNewChat',
+        data: {
+          question: selectedText,
+          answer: mockAnswer,
+        },
+      },
+      () => {
+        console.log('已创建新的聊天记录');
+        onClose();
+      }
+    );
   };
 
-  // 计算Modal位置 - 采用与工具栏相同的定位逻辑
+  // 添加到笔记
+  const handleAddToNote = () => {
+    chrome.runtime.sendMessage(
+      {
+        action: 'addToNote',
+        data: {
+          question: selectedText,
+          answer: mockAnswer,
+          model: currentModel,
+          timestamp: new Date().toISOString(),
+        },
+      },
+      () => {
+        message.success('已添加到笔记');
+      }
+    );
+  };
+
+  // 朗读功能
+  const handleRead = () => {
+    if (!speechRef.current) {
+      speechRef.current = new SpeechSynthesisUtterance();
+      speechRef.current.lang = 'zh-CN';
+    }
+
+    if (isReading) {
+      window.speechSynthesis.cancel();
+      setIsReading(false);
+      return;
+    }
+
+    const text = `问题：${selectedText}。回答：${mockAnswer}`;
+    speechRef.current.text = text;
+
+    speechRef.current.onend = () => {
+      setIsReading(false);
+    };
+
+    window.speechSynthesis.speak(speechRef.current);
+    setIsReading(true);
+  };
+
+  // 复制功能
+  const handleCopy = async () => {
+    const textToCopy = `问题：${selectedText}\n\n回答：${mockAnswer}`;
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      message.success('已复制到剪贴板');
+    } catch (err) {
+      message.error('复制失败，请重试');
+    }
+  };
+
+  // 清理朗读
   useEffect(() => {
-    // 延迟获取DOM的宽高，确保Modal已渲染
+    return () => {
+      if (speechRef.current) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // 计算 Modal 位置
+  useEffect(() => {
     const timer = setTimeout(() => {
-      // 获取选区宽高
       const selection = window.getSelection();
       const range = selection?.getRangeAt(0);
       const rect = range?.getBoundingClientRect();
 
       if (rect) {
-        // 划词区域相对于页面的位置
         const selectionLeft = rect.left + window.scrollX;
         const selectionTop = rect.top + window.scrollY;
 
-        // 计算聊天弹窗的left位置：划词区域left + 划词区域宽度的一半 - 弹窗宽度的一半
-        const modalWidth = 320; // Modal的宽度
-        const newX = selectionLeft + rect.width / 2 - modalWidth / 2;
-
-        // 默认计算top位置：划词区域top + 划词区域高度
+        const newX = selectionLeft + rect.width / 2 - POPUP_WIDTH / 2;
         let newY = selectionTop + rect.height + POPUP_DISTANCE;
 
-        // 如果top已经超出了边界，则计算为划词区域top - 弹窗高度
         if (newY + POPUP_HEIGHT > window.innerHeight + window.scrollY) {
           newY = selectionTop - POPUP_HEIGHT - POPUP_DISTANCE;
         }
 
-        // 确保不超出左右边界
-        const adjustedX = Math.max(10, Math.min(newX, window.innerWidth - modalWidth - 10));
-
+        const adjustedX = Math.max(
+          10,
+          Math.min(newX, window.innerWidth - POPUP_WIDTH - 10)
+        );
         setModalPosition({ x: adjustedX, y: newY });
       }
     }, 0);
@@ -130,44 +211,110 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
 
   return (
     <StyledModal
-      title="AI助手"
-      open={open}
-      onCancel={onClose}
-      mask={false}
-      footer={[
-        <Button key="cancel" onClick={onClose}>
-          取消
-        </Button>,
-        <Button
-          key="send"
-          type="primary"
-          onClick={handleSend}
-          style={{ backgroundColor: '#6e59f2' }}
-          loading={sending}
+      title={
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            width: '100%',
+            height: 30,
+            alignItems: 'center',
+          }}
         >
-          发送
-        </Button>
-      ]}
+          <Title level={5} style={{ margin: 0 }}>
+            {title}
+          </Title>
+          <div>
+            <Button
+              type="text"
+              icon={
+                isPinned ? (
+                  <PushpinFilled style={{ color: '#6e59f2' }} />
+                ) : (
+                  <PushpinOutlined />
+                )
+              }
+              onClick={() => {
+                setIsPinned((prev) => {
+                  onPinnedChange(!prev);
+                  return !prev;
+                });
+              }}
+            />
+            <Button type="text" icon={<CloseOutlined />} onClick={onClose} />
+          </div>
+        </div>
+      }
+      open={open}
+      footer={
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            width: '100%',
+          }}
+        >
+          <Button type="primary" onClick={handleContinueChat}>
+            继续聊天
+          </Button>
+          <Space>
+            <Button icon={<BookOutlined />} onClick={handleAddToNote}>
+              添加到笔记
+            </Button>
+            <Button
+              icon={<ReadOutlined />}
+              onClick={handleRead}
+              type={isReading ? 'primary' : 'default'}
+            >
+              {isReading ? '停止朗读' : '朗读'}
+            </Button>
+            <Button icon={<CopyOutlined />} onClick={handleCopy}>
+              复制
+            </Button>
+          </Space>
+        </div>
+      }
+      closable={false}
+      mask={false}
       maskClosable={false}
       style={{
         left: modalPosition.x,
         top: modalPosition.y,
-        position: 'fixed'
+        position: 'fixed',
       }}
-      width={320}
+      width={POPUP_WIDTH}
       getContainer={false}
-      modalRender={(modal) => <div ref={popupRef}>{modal}</div>}
+      modalRender={(modal) => (
+        <div
+          onMouseUp={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+        >
+          {modal}
+        </div>
+      )}
     >
-      <div style={{ marginBottom: 8 }}>
-        <Text type="secondary" style={{ fontSize: 12 }}>已选中文本内容：</Text>
-      </div>
-      <TextArea
-        autoSize={{ minRows: 3, maxRows: 5 }}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        style={{ marginBottom: 8 }}
-        placeholder="编辑消息内容..."
-      />
+      <ContentWrapper>
+        <QuestionBlock>
+          <Text strong>问题：</Text>
+          <div>{selectedText}</div>
+        </QuestionBlock>
+        <AnswerBlock>
+          <Text strong>回答：</Text>
+          <div>{mockAnswer}</div>
+          <ModelSelector>
+            <Button
+              type="link"
+              onClick={() =>
+                setCurrentModel(currentModel === 'GPT-4' ? 'GPT-3.5' : 'GPT-4')
+              }
+            >
+              {currentModel}
+            </Button>
+          </ModelSelector>
+        </AnswerBlock>
+      </ContentWrapper>
     </StyledModal>
   );
 };

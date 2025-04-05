@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import TextSelectionToolbar from './TextSelectionToolbar';
+import TextSelectionToolbar, {
+  TEXT_SELECTION_TOOLBAR_ACTION,
+  TEXT_SELECTION_TOOLBAR_ACTION_LABEL,
+} from './TextSelectionToolbar';
 import ChatPopup from './ChatPopup';
 import { useScreenshotStore } from '../../stores/screenshot';
 
@@ -11,18 +14,23 @@ const TextSelectionManager: React.FC = () => {
   });
   const [showToolbar, setShowToolbar] = useState<boolean>(false);
   const [showChatPopup, setShowChatPopup] = useState<boolean>(false);
+  const [pinned, setPinned] = useState<boolean>(false);
+  const [action, setAction] = useState<TEXT_SELECTION_TOOLBAR_ACTION>(
+    TEXT_SELECTION_TOOLBAR_ACTION.CHAT
+  );
+
+  const { isSelecting } = useScreenshotStore();
 
   const handleMouseUp = (event: MouseEvent) => {
     // 如果正在进行截图，不要显示文本选择工具栏
-    const { isSelecting } = useScreenshotStore.getState();
     if (isSelecting) {
       console.log('正在截图中，不显示划词工具栏');
       return;
     }
 
-    // 如果弹窗已经显示，不再触发新的选择
-    if (showChatPopup) {
-      console.log('聊天弹窗已显示，不触发新的选择');
+    // 如果弹窗已经显示则隐藏
+    if (showChatPopup && !pinned) {
+      setShowChatPopup(false);
       return;
     }
 
@@ -50,7 +58,7 @@ const TextSelectionManager: React.FC = () => {
     return () => {
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, []);
+  }, [isSelecting, showChatPopup, pinned]);
 
   // 关闭工具栏
   const handleCloseToolbar = () => {
@@ -84,14 +92,17 @@ const TextSelectionManager: React.FC = () => {
         position={position}
         onClose={handleCloseToolbar}
         onShowChat={handleShowChat}
+        onAction={setAction}
       />
 
       {showChatPopup && (
         <ChatPopup
+          title={TEXT_SELECTION_TOOLBAR_ACTION_LABEL?.[action]}
           open={showChatPopup}
           position={position}
           selectedText={selectedText}
           onClose={handleCloseChatPopup}
+          onPinnedChange={setPinned}
         />
       )}
     </>

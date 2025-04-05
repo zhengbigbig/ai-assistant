@@ -11,12 +11,25 @@ import {
 const TOOLBAR_HEIGHT = 40;
 const TOOLBAR_DISTANCE = 5;
 
+export enum TEXT_SELECTION_TOOLBAR_ACTION {
+  TRANSLATE = 'translate',
+  EXPLAIN = 'explain',
+  CHAT = 'chat',
+}
+
+export const TEXT_SELECTION_TOOLBAR_ACTION_LABEL = {
+  [TEXT_SELECTION_TOOLBAR_ACTION.TRANSLATE]: '翻译',
+  [TEXT_SELECTION_TOOLBAR_ACTION.EXPLAIN]: '解释',
+  [TEXT_SELECTION_TOOLBAR_ACTION.CHAT]: '发送',
+};
+
 interface TextSelectionToolbarProps {
   open: boolean;
   selectedText: string;
   position: { x: number; y: number };
   onClose: () => void;
   onShowChat: () => void;
+  onAction: (action: TEXT_SELECTION_TOOLBAR_ACTION) => void;
 }
 
 // 工具栏样式（基于Modal）
@@ -68,6 +81,7 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
   position,
   onClose,
   onShowChat,
+  onAction,
 }) => {
   const [modalPosition, setModalPosition] = useState({
     x: position.x,
@@ -91,13 +105,14 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
   }, [open, selectedText]);
 
   // 处理各种操作
-  const handleAction = (e: React.MouseEvent, action: string) => {
+  const handleAction = (e: React.MouseEvent, action: TEXT_SELECTION_TOOLBAR_ACTION) => {
     // 阻止事件冒泡，防止触发全局点击事件
     e.stopPropagation();
     e.preventDefault();
     console.log('handleAction', action);
     // 立即关闭工具栏
     onClose();
+    onAction(action);
 
     // 处理具体操作
     if (action === 'chat') {
@@ -112,7 +127,7 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
       );
     } else {
       onShowChat();
-      const messagePrefix = action === 'translate' ? '翻译: ' : '解释: ';
+      const messagePrefix = action === TEXT_SELECTION_TOOLBAR_ACTION.TRANSLATE ? '翻译: ' : '解释: ';
 
       chrome.runtime.sendMessage(
         {
@@ -176,33 +191,46 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
       width={240}
       getContainer={false}
     >
-      <ButtonsContainer
-        size={0}
-        direction="horizontal"
-      >
+      <ButtonsContainer size={0} direction="horizontal">
         <ActionButton
           type="text"
           size="small"
-          onMouseUp={(e) => handleAction(e, 'translate')}
+          onMouseUp={(e) =>
+            handleAction(e, TEXT_SELECTION_TOOLBAR_ACTION.TRANSLATE)
+          }
           icon={<TranslationOutlined />}
         >
-          翻译
+          {
+            TEXT_SELECTION_TOOLBAR_ACTION_LABEL[
+              TEXT_SELECTION_TOOLBAR_ACTION.TRANSLATE
+            ]
+          }
         </ActionButton>
         <ActionButton
           type="text"
           size="small"
-          onMouseUp={(e) => handleAction(e, 'explain')}
+          onMouseUp={(e) =>
+            handleAction(e, TEXT_SELECTION_TOOLBAR_ACTION.EXPLAIN)
+          }
           icon={<FileTextOutlined />}
         >
-          解释
+          {
+            TEXT_SELECTION_TOOLBAR_ACTION_LABEL[
+              TEXT_SELECTION_TOOLBAR_ACTION.EXPLAIN
+            ]
+          }
         </ActionButton>
         <ActionButton
           type="text"
           size="small"
-          onMouseUp={(e) => handleAction(e, 'chat')}
+          onMouseUp={(e) => handleAction(e, TEXT_SELECTION_TOOLBAR_ACTION.CHAT)}
           icon={<ArrowRightOutlined />}
         >
-          发送
+          {
+            TEXT_SELECTION_TOOLBAR_ACTION_LABEL[
+              TEXT_SELECTION_TOOLBAR_ACTION.CHAT
+            ]
+          }
         </ActionButton>
       </ButtonsContainer>
     </StyledModal>
