@@ -8,7 +8,13 @@ import { useScreenshotStore } from '../../stores/screenshot';
 
 const TextSelectionManager: React.FC = () => {
   const [selectedText, setSelectedText] = useState<string>('');
-  const [position, setPosition] = useState<{ x: number; y: number }>({
+  // 工具栏位置信息 - 初始化为鼠标位置或选区顶部
+  const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
+  // 聊天弹窗位置信息 - 使用选区中心点
+  const [chatPosition, setChatPosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
   });
@@ -41,10 +47,24 @@ const TextSelectionManager: React.FC = () => {
 
       // 如果有选中的文本，显示工具栏
       if (text && text.trim().length > 0) {
-        console.log('选中文本:', text, '位置:', event.clientX, event.clientY);
-        setSelectedText(text);
-        setPosition({ x: event.clientX, y: event.clientY });
-        setShowToolbar(true);
+        // 获取选区的位置信息
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+
+          // 为工具栏设置位置 - 使用鼠标位置
+          // TextSelectionToolbar内部会自行处理位置调整
+          setToolbarPosition({ x: event.clientX, y: event.clientY });
+
+          // 计算选区的中心点位置（用于聊天弹窗）
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+
+          console.log('选中文本:', text, '工具栏初始位置:', event.clientX, event.clientY, '聊天弹窗位置:', centerX, centerY);
+          setSelectedText(text);
+          setChatPosition({ x: centerX, y: centerY });
+          setShowToolbar(true);
+        }
       } else {
         console.log('没有选中文本或文本为空');
         setShowToolbar(false);
@@ -69,7 +89,7 @@ const TextSelectionManager: React.FC = () => {
   // 显示聊天弹窗
   const handleShowChat = () => {
     // 关闭工具栏
-    console.log('显示聊天弹窗，位置:', position);
+    console.log('显示聊天弹窗，位置:', chatPosition);
     setShowToolbar(false);
     // 显示聊天弹窗
     setShowChatPopup(true);
@@ -85,21 +105,22 @@ const TextSelectionManager: React.FC = () => {
 
   return (
     <>
-      {/* 减少频繁创建销毁 */}
+      {/* 划词工具栏 - 使用工具栏专用位置 */}
       <TextSelectionToolbar
         open={showToolbar}
         selectedText={selectedText}
-        position={position}
+        position={toolbarPosition}
         onClose={handleCloseToolbar}
         onShowChat={handleShowChat}
         onAction={setAction}
       />
 
+      {/* 聊天弹窗 - 使用聊天弹窗专用位置 */}
       {showChatPopup && (
         <ChatPopup
           title={TEXT_SELECTION_TOOLBAR_ACTION_LABEL?.[action]}
           open={showChatPopup}
-          position={position}
+          position={chatPosition}
           selectedText={selectedText}
           onClose={handleCloseChatPopup}
           onPinnedChange={setPinned}

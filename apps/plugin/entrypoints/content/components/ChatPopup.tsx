@@ -27,9 +27,8 @@ interface ChatPopupProps {
 
 const StyledModal = styled(Modal)`
   position: fixed !important;
-  top: ${(props) => props.style?.top}px;
-  left: ${(props) => props.style?.left}px;
   width: ${POPUP_WIDTH}px !important;
+  transition: all 0.2s ease-in-out;
 
   .ant-modal-content {
     padding: 16px;
@@ -38,6 +37,7 @@ const StyledModal = styled(Modal)`
     height: ${POPUP_HEIGHT}px;
     display: flex;
     flex-direction: column;
+    transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
   }
 
   .ant-modal-body {
@@ -45,6 +45,15 @@ const StyledModal = styled(Modal)`
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+    -webkit-overflow-scrolling: touch; /* 为移动设备提供平滑滚动 */
+    scrollbar-width: thin; /* Firefox */
+    &::-webkit-scrollbar {
+      width: 5px; /* Webkit浏览器 */
+    }
+    &::-webkit-scrollbar-thumb {
+      background-color: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+    }
   }
 
   .ant-modal-title {
@@ -183,27 +192,48 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
   // 计算 Modal 位置
   useEffect(() => {
     const timer = setTimeout(() => {
-      const selection = window.getSelection();
-      const range = selection?.getRangeAt(0);
-      const rect = range?.getBoundingClientRect();
+      // 1. 确定弹窗的尺寸
+      const popupWidth = POPUP_WIDTH;
+      const popupHeight = POPUP_HEIGHT;
 
-      if (rect) {
-        const selectionLeft = rect.left + window.scrollX;
-        const selectionTop = rect.top + window.scrollY;
+      // 2. 以选区中心点为基准计算弹窗的初始位置（使弹窗中心与选区中心吻合）
+      let newX = position.x - popupWidth / 2;
+      let newY = position.y - popupHeight / 2;
 
-        const newX = selectionLeft + rect.width / 2 - POPUP_WIDTH / 2;
-        let newY = selectionTop + rect.height + POPUP_DISTANCE;
+      // 3. 获取可视窗口的尺寸
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const scrollX = window.scrollX;
+      const scrollY = window.scrollY;
 
-        if (newY + POPUP_HEIGHT > window.innerHeight + window.scrollY) {
-          newY = selectionTop - POPUP_HEIGHT - POPUP_DISTANCE;
-        }
-
-        const adjustedX = Math.max(
-          10,
-          Math.min(newX, window.innerWidth - POPUP_WIDTH - 10)
-        );
-        setModalPosition({ x: adjustedX, y: newY });
+      // 4. 水平方向边界处理
+      // 确保弹窗不会超出屏幕左侧
+      if (newX < scrollX + 10) {
+        newX = scrollX + 10;
       }
+      // 确保弹窗不会超出屏幕右侧
+      if (newX + popupWidth > scrollX + viewportWidth - 10) {
+        newX = scrollX + viewportWidth - popupWidth - 10;
+      }
+
+      // 5. 垂直方向边界处理
+      // 优先确保弹窗不超出底部
+      if (newY + popupHeight > scrollY + viewportHeight - 10) {
+        // 如果放在选区下方会超出屏幕底部，尝试放在选区上方
+        const topPosition = position.y - popupHeight - 10;
+
+        // 如果放在选区上方也会超出屏幕顶部，则固定在屏幕顶部
+        if (topPosition < scrollY + 10) {
+          // 固定在可视区域顶部
+          newY = scrollY + 10;
+        } else {
+          // 放在选区上方
+          newY = topPosition;
+        }
+      }
+
+      console.log('调整后弹窗位置:', { x: newX, y: newY });
+      setModalPosition({ x: newX, y: newY });
     }, 0);
 
     return () => clearTimeout(timer);
@@ -281,6 +311,8 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
         left: modalPosition.x,
         top: modalPosition.y,
         position: 'fixed',
+        margin: 0,
+        padding: 0,
       }}
       width={POPUP_WIDTH}
       getContainer={false}
