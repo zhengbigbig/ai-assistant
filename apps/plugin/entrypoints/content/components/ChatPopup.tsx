@@ -15,6 +15,8 @@ const { Text, Title } = Typography;
 
 const POPUP_WIDTH = 500;
 const POPUP_HEIGHT = 500;
+const MIN_POPUP_WIDTH = 450;
+const MIN_POPUP_HEIGHT = 370;
 
 interface ChatPopupProps {
   open: boolean;
@@ -25,17 +27,18 @@ interface ChatPopupProps {
   onPinnedChange: (pinned: boolean) => void;
 }
 
-const StyledModal = styled(Modal)`
+const StyledModal = styled(Modal)<{ $width?: number; $height?: number }>`
   position: fixed !important;
-  width: ${POPUP_WIDTH}px !important;
+  width: ${(props) => props.$width || POPUP_WIDTH}px !important;
 
   .ant-modal-content {
     padding: 16px;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    height: ${POPUP_HEIGHT}px;
+    height: ${(props) => props.$height || POPUP_HEIGHT}px !important;
     display: flex;
     flex-direction: column;
+    position: relative;
   }
 
   .ant-modal-body {
@@ -94,6 +97,24 @@ const StyledAntApp = styled(App)`
   }
 `;
 
+const ResizeHandle = styled.div`
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  color: #bfbfbf;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+
+  &:hover {
+    color: #1890ff;
+  }
+`;
+
 const ChatPopup: React.FC<ChatPopupProps> = ({
   open,
   position,
@@ -107,6 +128,12 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
     x: position.x,
     y: position.y,
   });
+  const [modalSize, setModalSize] = useState({
+    width: POPUP_WIDTH,
+    height: POPUP_HEIGHT,
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeStartPos, setResizeStartPos] = useState({ x: 0, y: 0 });
   const [currentModel, setCurrentModel] = useState('GPT-4');
   const [isReading, setIsReading] = useState(false);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -274,6 +301,55 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
     [moveBox]
   );
 
+  // 处理调整大小的开始
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    setResizeStartPos({
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+
+  // 处理调整大小的移动
+  const handleResizeMove = (e: any) => {
+    if (!isResizing) return;
+
+    const deltaX = e.clientX - resizeStartPos.x;
+    const deltaY = e.clientY - resizeStartPos.y;
+
+    const newWidth = Math.max(modalSize.width + deltaX, MIN_POPUP_WIDTH);
+    const newHeight = Math.max(modalSize.height + deltaY, MIN_POPUP_HEIGHT);
+
+    setModalSize({
+      width: newWidth,
+      height: newHeight,
+    });
+
+    // 更新起始位置，使得拖拽更加丝滑
+    setResizeStartPos({
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+
+  // 处理调整大小的结束
+  const handleResizeEnd = () => {
+    console.log('handleResizeEnd');
+    setIsResizing(false);
+    document.removeEventListener('mousemove', handleResizeMove);
+  };
+
+  // 清理事件监听
+  useEffect(() => {
+    // 添加全局事件监听
+    document.addEventListener('mousemove', handleResizeMove);
+    return () => {
+      document.removeEventListener('mousemove', handleResizeMove);
+    };
+  }, [isResizing]);
+
   return (
     <StyledAntApp>
       <div
@@ -285,6 +361,8 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
         }}
       >
         <StyledModal
+          $width={modalSize.width}
+          $height={modalSize.height}
           title={
             <div
               style={{
@@ -326,31 +404,40 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
           }
           open={open}
           footer={
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                width: '100%',
-              }}
-            >
-              <Button type="primary" onClick={handleContinueChat}>
-                继续聊天
-              </Button>
-              <Space>
-                <Button icon={<BookOutlined />} onClick={handleAddToNote}>
-                  添加到笔记
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                }}
+              >
+                <Button type="primary" onClick={handleContinueChat}>
+                  继续聊天
                 </Button>
-                <Button
-                  icon={<ReadOutlined />}
-                  onClick={handleRead}
-                  type={isReading ? 'primary' : 'default'}
-                >
-                  {isReading ? '停止朗读' : '朗读'}
-                </Button>
-                <Button icon={<CopyOutlined />} onClick={handleCopy}>
-                  复制
-                </Button>
-              </Space>
+                <Space>
+                  <Button icon={<BookOutlined />} onClick={handleAddToNote}>
+                    添加到笔记
+                  </Button>
+                  <Button
+                    icon={<ReadOutlined />}
+                    onClick={handleRead}
+                    type={isReading ? 'primary' : 'default'}
+                  >
+                    {isReading ? '停止朗读' : '朗读'}
+                  </Button>
+                  <Button icon={<CopyOutlined />} onClick={handleCopy}>
+                    复制
+                  </Button>
+                </Space>
+              </div>
+              <ResizeHandle
+                onMouseDown={handleResizeStart}
+                onMouseMove={handleResizeMove}
+                onMouseUp={handleResizeEnd}
+              >
+                &#9698;
+              </ResizeHandle>
             </div>
           }
           closable={false}
@@ -363,7 +450,7 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
             margin: 0,
             padding: 0,
           }}
-          width={POPUP_WIDTH}
+          width={modalSize.width}
           getContainer={false}
           modalRender={(modal) => (
             <div
