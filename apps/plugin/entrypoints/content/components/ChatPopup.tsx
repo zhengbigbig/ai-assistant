@@ -6,15 +6,15 @@ import {
   PushpinOutlined,
   ReadOutlined,
 } from '@ant-design/icons';
-import { Button, Modal, Space, Typography, message } from 'antd';
+import { App, Button, Modal, Space, Typography, message } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
+import { useDrag, useDrop, XYCoord } from 'react-dnd';
 import styled from 'styled-components';
 
 const { Text, Title } = Typography;
 
 const POPUP_WIDTH = 500;
 const POPUP_HEIGHT = 500;
-const POPUP_DISTANCE = 5;
 
 interface ChatPopupProps {
   open: boolean;
@@ -28,7 +28,6 @@ interface ChatPopupProps {
 const StyledModal = styled(Modal)`
   position: fixed !important;
   width: ${POPUP_WIDTH}px !important;
-  transition: all 0.2s ease-in-out;
 
   .ant-modal-content {
     padding: 16px;
@@ -37,7 +36,6 @@ const StyledModal = styled(Modal)`
     height: ${POPUP_HEIGHT}px;
     display: flex;
     flex-direction: column;
-    transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
   }
 
   .ant-modal-body {
@@ -87,6 +85,13 @@ const ModelSelector = styled.div`
   position: absolute;
   bottom: 8px;
   right: 8px;
+`;
+
+const StyledAntApp = styled(App)`
+  .ant-modal-root,
+  .ant-modal-wrap {
+    position: unset !important;
+  }
 `;
 
 const ChatPopup: React.FC<ChatPopupProps> = ({
@@ -239,115 +244,165 @@ const ChatPopup: React.FC<ChatPopupProps> = ({
     return () => clearTimeout(timer);
   }, [position]);
 
+  const [{ isDragging }, drag] = useDrag(
+    () => ({
+      type: 'box',
+      item: { left: modalPosition.x, top: modalPosition.y },
+      collect: (monitor) => ({
+        isDragging: monitor.isDragging(),
+      }),
+    }),
+    [modalPosition]
+  );
+
+  const moveBox = (left: number, top: number) => {
+    setModalPosition({ x: left, y: top });
+  };
+
+  const [, drop] = useDrop(
+    () => ({
+      accept: 'box',
+      drop(item: any, monitor) {
+        const delta = monitor.getDifferenceFromInitialOffset() as XYCoord;
+        const left = Math.round(item.left + delta.x);
+        const top = Math.round(item.top + delta.y);
+        console.log('moveBox', left, top);
+        moveBox(left, top);
+        return undefined;
+      },
+    }),
+    [moveBox]
+  );
+
   return (
-    <StyledModal
-      title={
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            width: '100%',
-            height: 30,
-            alignItems: 'center',
-          }}
-        >
-          <Title level={5} style={{ margin: 0 }}>
-            {title}
-          </Title>
-          <div>
-            <Button
-              type="text"
-              icon={
-                isPinned ? (
-                  <PushpinFilled style={{ color: '#6e59f2' }} />
-                ) : (
-                  <PushpinOutlined />
-                )
-              }
-              onClick={() => {
-                setIsPinned((prev) => {
-                  onPinnedChange(!prev);
-                  return !prev;
-                });
+    <StyledAntApp>
+      <div
+        ref={drop as any}
+        style={{ position: 'fixed', width: '100%', height: '100%' }}
+        onMouseUp={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        }}
+      >
+        <StyledModal
+          title={
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                width: '100%',
+                height: 30,
+                alignItems: 'center',
+                cursor: isDragging ? 'grabbing' : 'move',
               }}
-            />
-            <Button type="text" icon={<CloseOutlined />} onClick={onClose} />
-          </div>
-        </div>
-      }
-      open={open}
-      footer={
-        <div
+            >
+              <Title level={5} style={{ margin: 0 }}>
+                {title}
+              </Title>
+              <div>
+                <Button
+                  type="text"
+                  icon={
+                    isPinned ? (
+                      <PushpinFilled style={{ color: '#6e59f2' }} />
+                    ) : (
+                      <PushpinOutlined />
+                    )
+                  }
+                  onClick={() => {
+                    setIsPinned((prev) => {
+                      onPinnedChange(!prev);
+                      return !prev;
+                    });
+                  }}
+                />
+                <Button
+                  type="text"
+                  icon={<CloseOutlined />}
+                  onClick={onClose}
+                />
+              </div>
+            </div>
+          }
+          open={open}
+          footer={
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                width: '100%',
+              }}
+            >
+              <Button type="primary" onClick={handleContinueChat}>
+                继续聊天
+              </Button>
+              <Space>
+                <Button icon={<BookOutlined />} onClick={handleAddToNote}>
+                  添加到笔记
+                </Button>
+                <Button
+                  icon={<ReadOutlined />}
+                  onClick={handleRead}
+                  type={isReading ? 'primary' : 'default'}
+                >
+                  {isReading ? '停止朗读' : '朗读'}
+                </Button>
+                <Button icon={<CopyOutlined />} onClick={handleCopy}>
+                  复制
+                </Button>
+              </Space>
+            </div>
+          }
+          closable={false}
+          mask={false}
+          maskClosable={false}
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            width: '100%',
+            left: modalPosition.x,
+            top: modalPosition.y,
+            position: 'fixed',
+            margin: 0,
+            padding: 0,
           }}
-        >
-          <Button type="primary" onClick={handleContinueChat}>
-            继续聊天
-          </Button>
-          <Space>
-            <Button icon={<BookOutlined />} onClick={handleAddToNote}>
-              添加到笔记
-            </Button>
-            <Button
-              icon={<ReadOutlined />}
-              onClick={handleRead}
-              type={isReading ? 'primary' : 'default'}
+          width={POPUP_WIDTH}
+          getContainer={false}
+          modalRender={(modal) => (
+            <div
+              onMouseUp={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+              }}
+              ref={drag as any}
+              data-testid="box"
             >
-              {isReading ? '停止朗读' : '朗读'}
-            </Button>
-            <Button icon={<CopyOutlined />} onClick={handleCopy}>
-              复制
-            </Button>
-          </Space>
-        </div>
-      }
-      closable={false}
-      mask={false}
-      maskClosable={false}
-      style={{
-        left: modalPosition.x,
-        top: modalPosition.y,
-        position: 'fixed',
-        margin: 0,
-        padding: 0,
-      }}
-      width={POPUP_WIDTH}
-      getContainer={false}
-      modalRender={(modal) => (
-        <div
-          onMouseUp={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
+              {modal}
+            </div>
+          )}
         >
-          {modal}
-        </div>
-      )}
-    >
-      <ContentWrapper>
-        <QuestionBlock>
-          <Text strong>问题：</Text>
-          <div>{selectedText}</div>
-        </QuestionBlock>
-        <AnswerBlock>
-          <Text strong>回答：</Text>
-          <div>{mockAnswer}</div>
-          <ModelSelector>
-            <Button
-              type="link"
-              onClick={() =>
-                setCurrentModel(currentModel === 'GPT-4' ? 'GPT-3.5' : 'GPT-4')
-              }
-            >
-              {currentModel}
-            </Button>
-          </ModelSelector>
-        </AnswerBlock>
-      </ContentWrapper>
-    </StyledModal>
+          <ContentWrapper>
+            <QuestionBlock>
+              <Text strong>问题：</Text>
+              <div>{selectedText}</div>
+            </QuestionBlock>
+            <AnswerBlock>
+              <Text strong>回答：</Text>
+              <div>{mockAnswer}</div>
+              <ModelSelector>
+                <Button
+                  type="link"
+                  onClick={() =>
+                    setCurrentModel(
+                      currentModel === 'GPT-4' ? 'GPT-3.5' : 'GPT-4'
+                    )
+                  }
+                >
+                  {currentModel}
+                </Button>
+              </ModelSelector>
+            </AnswerBlock>
+          </ContentWrapper>
+        </StyledModal>
+      </div>
+    </StyledAntApp>
   );
 };
 

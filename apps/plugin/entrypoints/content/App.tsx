@@ -1,18 +1,13 @@
 import { StyleProvider } from '@ant-design/cssinjs';
-import { App as AntApp, ConfigProvider, theme } from 'antd';
+import { ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import styled, { StyleSheetManager } from 'styled-components';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import { StyleSheetManager } from 'styled-components';
 import TextSelectionManager from './components/TextSelectionManager';
 
 // 引入全局样式
 import '../../styles/global.css';
-
-const StyledAntApp = styled(AntApp)`
-  .ant-modal-root,
-  .ant-modal-wrap {
-    position: unset !important;
-  }
-`;
 
 function App({ shadowRoot }: { shadowRoot: ShadowRoot }) {
   console.log('App mounted');
@@ -29,9 +24,10 @@ function App({ shadowRoot }: { shadowRoot: ShadowRoot }) {
             },
           }}
         >
-          <StyledAntApp>
-            <TextSelectionManager />
-          </StyledAntApp>
+    <DndProvider backend={HTML5Backend}>
+
+              <TextSelectionManager />
+            </DndProvider>
         </ConfigProvider>
       </StyleProvider>
     </StyleSheetManager>

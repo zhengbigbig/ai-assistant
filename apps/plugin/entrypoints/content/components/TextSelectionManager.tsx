@@ -33,7 +33,6 @@ const TextSelectionManager: React.FC = () => {
       console.log('正在截图中，不显示划词工具栏');
       return;
     }
-
     // 如果弹窗已经显示则隐藏
     if (showChatPopup && !pinned) {
       setShowChatPopup(false);

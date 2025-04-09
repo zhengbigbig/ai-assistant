@@ -1,12 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { useClickAway } from 'ahooks';
-import { Button, Space, Modal } from 'antd';
-import styled from 'styled-components';
 import {
-  TranslationOutlined,
-  FileTextOutlined,
   ArrowRightOutlined,
+  FileTextOutlined,
+  TranslationOutlined,
 } from '@ant-design/icons';
+import { App, Button, Modal, Space } from 'antd';
+import React, { useEffect, useState } from 'react';
+import styled from 'styled-components';
 
 const TOOLBAR_HEIGHT = 40;
 const TOOLBAR_DISTANCE = 5;
@@ -75,6 +74,13 @@ const ButtonsContainer = styled(Space)`
   justify-content: space-between;
 `;
 
+const StyledAntApp = styled(App)`
+  .ant-modal-root,
+  .ant-modal-wrap {
+    position: unset !important;
+  }
+`;
+
 const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
   open,
   selectedText,
@@ -105,7 +111,10 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
   }, [open, selectedText]);
 
   // 处理各种操作
-  const handleAction = (e: React.MouseEvent, action: TEXT_SELECTION_TOOLBAR_ACTION) => {
+  const handleAction = (
+    e: React.MouseEvent,
+    action: TEXT_SELECTION_TOOLBAR_ACTION
+  ) => {
     // 阻止事件冒泡，防止触发全局点击事件
     e.stopPropagation();
     e.preventDefault();
@@ -127,7 +136,10 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
       );
     } else {
       onShowChat();
-      const messagePrefix = action === TEXT_SELECTION_TOOLBAR_ACTION.TRANSLATE ? '翻译: ' : '解释: ';
+      const messagePrefix =
+        action === TEXT_SELECTION_TOOLBAR_ACTION.TRANSLATE
+          ? '翻译: '
+          : '解释: ';
 
       chrome.runtime.sendMessage(
         {
@@ -181,59 +193,63 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
   };
 
   return (
-    <StyledModal
-      open={open}
-      closable={false}
-      footer={null}
-      onCancel={onClose}
-      mask={false}
-      style={modalStyle}
-      width={240}
-      getContainer={false}
-    >
-      <ButtonsContainer size={0} direction="horizontal">
-        <ActionButton
-          type="text"
-          size="small"
-          onMouseUp={(e) =>
-            handleAction(e, TEXT_SELECTION_TOOLBAR_ACTION.TRANSLATE)
-          }
-          icon={<TranslationOutlined />}
-        >
-          {
-            TEXT_SELECTION_TOOLBAR_ACTION_LABEL[
-              TEXT_SELECTION_TOOLBAR_ACTION.TRANSLATE
-            ]
-          }
-        </ActionButton>
-        <ActionButton
-          type="text"
-          size="small"
-          onMouseUp={(e) =>
-            handleAction(e, TEXT_SELECTION_TOOLBAR_ACTION.EXPLAIN)
-          }
-          icon={<FileTextOutlined />}
-        >
-          {
-            TEXT_SELECTION_TOOLBAR_ACTION_LABEL[
-              TEXT_SELECTION_TOOLBAR_ACTION.EXPLAIN
-            ]
-          }
-        </ActionButton>
-        <ActionButton
-          type="text"
-          size="small"
-          onMouseUp={(e) => handleAction(e, TEXT_SELECTION_TOOLBAR_ACTION.CHAT)}
-          icon={<ArrowRightOutlined />}
-        >
-          {
-            TEXT_SELECTION_TOOLBAR_ACTION_LABEL[
-              TEXT_SELECTION_TOOLBAR_ACTION.CHAT
-            ]
-          }
-        </ActionButton>
-      </ButtonsContainer>
-    </StyledModal>
+    <StyledAntApp>
+      <StyledModal
+        open={open}
+        closable={false}
+        footer={null}
+        onCancel={onClose}
+        mask={false}
+        style={modalStyle}
+        width={240}
+        getContainer={false}
+      >
+        <ButtonsContainer size={0} direction="horizontal">
+          <ActionButton
+            type="text"
+            size="small"
+            onMouseUp={(e) =>
+              handleAction(e, TEXT_SELECTION_TOOLBAR_ACTION.TRANSLATE)
+            }
+            icon={<TranslationOutlined />}
+          >
+            {
+              TEXT_SELECTION_TOOLBAR_ACTION_LABEL[
+                TEXT_SELECTION_TOOLBAR_ACTION.TRANSLATE
+              ]
+            }
+          </ActionButton>
+          <ActionButton
+            type="text"
+            size="small"
+            onMouseUp={(e) =>
+              handleAction(e, TEXT_SELECTION_TOOLBAR_ACTION.EXPLAIN)
+            }
+            icon={<FileTextOutlined />}
+          >
+            {
+              TEXT_SELECTION_TOOLBAR_ACTION_LABEL[
+                TEXT_SELECTION_TOOLBAR_ACTION.EXPLAIN
+              ]
+            }
+          </ActionButton>
+          <ActionButton
+            type="text"
+            size="small"
+            onMouseUp={(e) =>
+              handleAction(e, TEXT_SELECTION_TOOLBAR_ACTION.CHAT)
+            }
+            icon={<ArrowRightOutlined />}
+          >
+            {
+              TEXT_SELECTION_TOOLBAR_ACTION_LABEL[
+                TEXT_SELECTION_TOOLBAR_ACTION.CHAT
+              ]
+            }
+          </ActionButton>
+        </ButtonsContainer>
+      </StyledModal>
+    </StyledAntApp>
   );
 };
 
