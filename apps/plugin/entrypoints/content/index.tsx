@@ -1,5 +1,4 @@
 import { defineContentScript } from 'wxt/sandbox';
-import { startExtendedAreaScreenshot } from './screenshot';
 import { createRoot } from 'react-dom/client';
 import { createShadowRootUi } from 'wxt/client';
 import App from './App';
@@ -45,12 +44,8 @@ export default defineContentScript({
         if (selectedText) {
           sendResponse({ text: selectedText });
         }
-      } else if (message.action === 'startAreaScreenshot') {
-        // 直接开始选定区域截图模式，不再显示选择按钮
-        console.log('Starting extended area screenshot mode');
-        startExtendedAreaScreenshot();
-        sendResponse({ success: true });
       }
+      // 注意：startAreaScreenshot 消息现在由 ScreenshotManager 组件处理
       return true;
     });
   },

@@ -5,6 +5,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { StyleSheetManager } from 'styled-components';
 import TextSelectionManager from './components/TextSelectionManager';
+import ScreenshotManager from './components/ScreenshotManager';
 
 // 引入全局样式
 import '../../styles/global.css';
@@ -24,10 +25,10 @@ function App({ shadowRoot }: { shadowRoot: ShadowRoot }) {
             },
           }}
         >
-    <DndProvider backend={HTML5Backend}>
-
-              <TextSelectionManager />
-            </DndProvider>
+          <DndProvider backend={HTML5Backend}>
+            <TextSelectionManager />
+            <ScreenshotManager />
+          </DndProvider>
         </ConfigProvider>
       </StyleProvider>
     </StyleSheetManager>
