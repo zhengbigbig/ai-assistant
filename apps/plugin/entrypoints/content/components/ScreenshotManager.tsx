@@ -23,7 +23,7 @@ const SelectionBox = styled.div`
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
 `;
 
-const ControlPanel = styled.div`
+const ControlPanel = styled.div<{ position: { top: number; left: number } }>`
   position: fixed;
   z-index: 2147483647;
   background-color: white;
@@ -32,6 +32,8 @@ const ControlPanel = styled.div`
   padding: 8px;
   display: flex;
   gap: 8px;
+  top: ${(props) => props.position.top}px;
+  left: ${(props) => props.position.left}px;
 `;
 
 const PreventInteraction = styled.div`
@@ -96,6 +98,9 @@ const ScreenshotManager: React.FC = () => {
     extendedStartY: 0,
     extendedEndY: 0,
   });
+
+  // 新增控制面板位置状态
+  const [controlPosition, setControlPosition] = useState({ top: 0, left: 0 });
 
   // 引用
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -288,51 +293,49 @@ const ScreenshotManager: React.FC = () => {
       return;
     }
 
+    // 计算控制面板位置
+    if (selectionBoxRef.current) {
+      const selectionRect = selectionBoxRef.current.getBoundingClientRect();
+      calculateControlPosition(selectionRect);
+    }
+
     // 显示控制按钮
     setShowControls(true);
-    updateControlPosition();
   };
 
-  // 更新控制面板位置
-  const updateControlPosition = () => {
-    if (!controlPanelRef.current || !selectionBoxRef.current) return;
+  // 计算控制面板位置
+  const calculateControlPosition = (selectionRect: DOMRect) => {
+    // 默认位置（选区下方）
+    let top = selectionRect.bottom + 10;
+    let left = selectionRect.left;
 
-    const selectionRect = selectionBoxRef.current.getBoundingClientRect();
-    controlPanelRef.current.style.top = `${selectionRect.bottom + 10}px`;
-    controlPanelRef.current.style.left = `${selectionRect.left}px`;
-
-    // 确保控制按钮在视口内
-    const controlsRect = controlPanelRef.current.getBoundingClientRect();
+    // 估算控制面板尺寸（按钮高度 + 边距）
+    const estimatedControlHeight = 40;
+    const estimatedControlWidth = 140;
 
     // 检查底部空间是否足够
+    const bottomSpace = window.innerHeight - selectionRect.bottom;
     const topSpace = selectionRect.top;
 
-    // 没有足够的底部空间，也没有足够的顶部空间时，放在视口中心
-    if (
-      controlsRect.bottom > window.innerHeight &&
-      topSpace < controlsRect.height
-    ) {
-      // 上下都没有足够空间，放在视口中心
-      controlPanelRef.current.style.top = `${Math.max(
-        10,
-        (window.innerHeight - controlsRect.height) / 2
-      )}px`;
-      controlPanelRef.current.style.left = `${Math.max(
-        10,
-        (window.innerWidth - controlsRect.width) / 2
-      )}px`;
-    } else if (controlsRect.bottom > window.innerHeight) {
-      // 底部空间不足，但顶部有空间，放在选区上方
-      controlPanelRef.current.style.top = `${
-        selectionRect.top - controlsRect.height - 10
-      }px`;
+    // 检查是否超出视口底部
+    if (bottomSpace < estimatedControlHeight + 10) {
+      // 顶部空间不足时，放在视口中心
+      if (topSpace < estimatedControlHeight + 10) {
+        top = Math.max(10, (window.innerHeight - estimatedControlHeight) / 2);
+        left = Math.max(10, (window.innerWidth - estimatedControlWidth) / 2);
+      } else {
+        // 放在选区上方
+        top = selectionRect.top - estimatedControlHeight - 10;
+      }
     }
 
-    if (controlsRect.right > window.innerWidth) {
-      controlPanelRef.current.style.left = `${
-        window.innerWidth - controlsRect.width - 10
-      }px`;
+    // 检查是否超出视口右侧
+    if (left + estimatedControlWidth > window.innerWidth) {
+      left = window.innerWidth - estimatedControlWidth - 10;
     }
+
+    // 更新状态
+    setControlPosition({ top, left });
   };
 
   // 检查自动滚动
@@ -455,7 +458,6 @@ const ScreenshotManager: React.FC = () => {
     const viewportHeight = window.innerHeight;
     const relativeOffset = startScrollY % viewportHeight;
     const areSingleImage = endScrollY - startScrollY <= viewportHeight;
-
     // 隐藏所有UI元素用于截图
     hideUIElementsForCapture();
 
@@ -810,11 +812,11 @@ const ScreenshotManager: React.FC = () => {
       <SelectionBox ref={selectionBoxRef} />
 
       {showControls && (
-        <ControlPanel ref={controlPanelRef}>
+        <ControlPanel position={controlPosition}>
           <Button type="primary" size="small" onClick={confirmScreenshot}>
             确认
           </Button>
-          <Button size="small" onClick={() => cleanupScreenshot()}>
+          <Button size="small" onClick={() => cleanupScreenshot(true)}>
             取消
           </Button>
         </ControlPanel>
