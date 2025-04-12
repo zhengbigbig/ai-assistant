@@ -1,8 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { App, ConfigProvider, theme } from 'antd';
+import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import OptionsPage from '../../components/OptionsPage';
+import App from './App';
 import '../../styles/global.css';
 
 // 创建应用根节点
@@ -16,14 +16,14 @@ root.render(
       theme={{
         algorithm: theme.defaultAlgorithm,
         token: {
-          colorPrimary: '#1677ff',
-          borderRadius: 4,
+          colorPrimary: '#6e59f2',
+          borderRadius: 8,
         },
       }}
     >
-      <App>
-        <OptionsPage />
-      </App>
+      <AntdApp>
+        <App />
+      </AntdApp>
     </ConfigProvider>
   </React.StrictMode>
 );
