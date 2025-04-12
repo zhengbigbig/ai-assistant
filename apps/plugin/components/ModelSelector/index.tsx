@@ -1,18 +1,14 @@
 import React, { useState } from 'react';
 import './styles.css';
+import {
+  ModelType,
+  useAvailableModels
+} from '../../entrypoints/stores/configStore';
 
 interface ModelSelectorProps {
   selectedModel: string;
   onSelectModel: (model: string) => void;
 }
-
-// 可用模型列表
-const availableModels = [
-  { id: 'gpt-4', name: 'GPT-4', description: '最强大的模型' },
-  { id: 'gpt-3.5', name: 'GPT-3.5', description: '平衡性能与速度' },
-  { id: 'qwen-7b', name: '通义千问', description: '阿里通义千问模型' },
-  { id: 'llama-3', name: 'LLAMA-3', description: 'Meta开源模型' },
-];
 
 /**
  * 模型选择器组件
@@ -24,8 +20,12 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
+  // 使用hook获取可用模型列表
+  const availableModels = useAvailableModels();
+
   // 获取当前选中的模型信息
-  const currentModel = availableModels.find((model) => model.id === selectedModel);
+  const currentModel = availableModels.find((model) => model.id === selectedModel) ||
+                      (availableModels.length > 0 ? availableModels[0] : null);
 
   // 切换下拉菜单
   const toggleDropdown = () => {
@@ -59,7 +59,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
                 onClick={() => handleSelectModel(model.id)}
               >
                 <div className="model-name">{model.name}</div>
-                <div className="model-description">{model.description}</div>
+                <div className="model-description">{model.description || model.value}</div>
               </li>
             ))}
           </ul>

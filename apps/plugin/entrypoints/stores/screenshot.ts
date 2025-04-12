@@ -1,7 +1,7 @@
 // stores/screenshotStore.ts
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import chromeStorageAdapter from './storage'
+import { localStorageAdapter } from './storage'
 
 interface ScreenshotState {
   // 状态
@@ -32,7 +32,7 @@ export const useScreenshotStore = create<ScreenshotState>()(
     }),
     {
       name: 'screenshot-storage', // 本地存储的键名
-      storage: createJSONStorage(() => chromeStorageAdapter),
+      storage: localStorageAdapter,
     }
   )
 )

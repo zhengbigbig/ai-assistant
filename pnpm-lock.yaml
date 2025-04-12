@@ -17,6 +17,9 @@ importers:
       antd:
         specifier: ^5.24.4
         version: 5.24.4(luxon@3.5.0)(moment@2.30.1)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      immer:
+        specifier: ^10.1.1
+        version: 10.1.1
       next:
         specifier: ~15.1.4
         version: 15.1.7(@babel/core@7.26.10)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(sass@1.85.1)
@@ -200,7 +203,7 @@ importers:
         version: 6.1.16(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       zustand:
         specifier: ^5.0.3
-        version: 5.0.3(@types/react@19.0.12)(react@19.0.0)
+        version: 5.0.3(@types/react@19.0.12)(immer@10.1.1)(react@19.0.0)
     devDependencies:
       '@types/chrome':
         specifier: ^0.0.280
@@ -6939,6 +6942,9 @@ packages:
 
   immediate@3.0.6:
     resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
+
+  immer@10.1.1:
+    resolution: {integrity: sha512-s2MPrmjovJcoMaHtx6K11Ra7oD05NT97w1IC5zpMkT6Atjr7H8LjaDd81iIxUYpMKSRRNMJE703M1Fhr/TctHw==}
 
   immutability-helper@3.1.1:
     resolution: {integrity: sha512-Q0QaXjPjwIju/28TsugCHNEASwoCcJSyJV3uO1sOIQGI0jKgm9f41Lvz0DZj3n46cNCyAZTsEYoY4C2bVRUzyQ==}
@@ -20535,6 +20541,8 @@ snapshots:
 
   immediate@3.0.6: {}
 
+  immer@10.1.1: {}
+
   immutability-helper@3.1.1: {}
 
   immutable@5.0.3: {}
@@ -26987,9 +26995,10 @@ snapshots:
 
   zod@3.24.2: {}
 
-  zustand@5.0.3(@types/react@19.0.12)(react@19.0.0):
+  zustand@5.0.3(@types/react@19.0.12)(immer@10.1.1)(react@19.0.0):
     optionalDependencies:
       '@types/react': 19.0.12
+      immer: 10.1.1
       react: 19.0.0
 
   zwitch@2.0.4: {}

@@ -1,25 +1,25 @@
-import React, { useState } from 'react';
-import styled from 'styled-components';
-import { Layout, Menu, theme, Typography } from 'antd';
 import {
-  SettingOutlined,
   ApiOutlined,
-  TranslationOutlined,
-  GlobalOutlined,
   CodeOutlined,
+  GlobalOutlined,
   KeyOutlined,
   MenuFoldOutlined,
-  MenuUnfoldOutlined
+  MenuUnfoldOutlined,
+  SettingOutlined,
+  TranslationOutlined,
 } from '@ant-design/icons';
+import { Layout, Menu, theme, Typography } from 'antd';
+import React, { useState } from 'react';
+import styled from 'styled-components';
 
 // 配置页面组件
 import GeneralSettings from './components/GeneralSettings';
+import KeyboardShortcutsSettings from './components/KeyboardShortcutsSettings';
+import PromptWordsSettings from './components/PromptWordsSettings';
 import SidebarSettings from './components/SidebarSettings';
 import SmartMenuSettings from './components/SmartMenuSettings';
 import TranslationSettings from './components/TranslationSettings';
 import WebHelperSettings from './components/WebHelperSettings';
-import PromptWordsSettings from './components/PromptWordsSettings';
-import KeyboardShortcutsSettings from './components/KeyboardShortcutsSettings';
 
 const { Header, Content, Sider } = Layout;
 const { Title } = Typography;
@@ -27,6 +27,7 @@ const { Title } = Typography;
 // 使用styled-components创建样式化组件
 const StyledLayout = styled(Layout)`
   min-height: 100vh;
+  min-width: 800px;
 `;
 
 const StyledHeader = styled(Header)`
@@ -54,6 +55,8 @@ const StyledSider = styled(Sider)`
 
 const StyledContentLayout = styled(Layout)`
   padding: 24px;
+  overflow: auto;
+  height: calc(100vh - 64px);
 `;
 
 const StyledContent = styled(Content)`
@@ -61,7 +64,7 @@ const StyledContent = styled(Content)`
   margin: 0;
   background-color: #fff;
   border-radius: 8px;
-  min-height: 280px;
+  display: table;
 `;
 
 /**

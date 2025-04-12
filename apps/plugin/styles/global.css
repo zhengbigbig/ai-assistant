@@ -39,35 +39,6 @@ body {
   flex-direction: column;
 }
 
-a {
-  color: var(--primary-color);
-  text-decoration: none;
-}
-
-a:hover {
-  color: var(--hover-color);
-  text-decoration: underline;
-}
-
-button {
-  cursor: pointer;
-  font-family: inherit;
-  border: none;
-  background: none;
-  padding: 0;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 基础表单元素样式 */
-input, textarea {
-  font-family: inherit;
-  font-size: 1rem;
-  color: var(--text-color);
-}
-
 /* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 6px;
