@@ -39,6 +39,17 @@ export interface SidebarSettings {
   // 聊天设置
   restoreChat: 'always' | 'restore' | 'auto';
   scrollBehavior: 'bottom' | 'auto';
+  showSiderIcon: boolean;
+  autoSelectText: boolean;
+}
+
+// 智能菜单设置接口
+export interface TextSelectionSettings {
+  enableTextSelection: boolean;
+  enableWriteTextSelection: boolean;
+  hotkey: string;
+  triggerCondition: 'selectText' | 'selectTextAndPressHotkey';
+  forbiddenWebsites: string[];
 }
 
 // 账户信息接口
@@ -63,6 +74,9 @@ export interface ConfigState {
   // 侧边栏设置
   sidebar: SidebarSettings;
 
+  // 智能菜单设置
+  textSelection: TextSelectionSettings;
+
   // 账户信息
   account: AccountInfo | null;
 
@@ -86,6 +100,9 @@ export interface ConfigState {
 
   // 侧边栏设置操作
   updateSidebar: (settings: Partial<SidebarSettings>) => void;
+
+  // 智能菜单设置操作
+  updateTextSelection: (settings: Partial<TextSelectionSettings>) => void;
 
   // 账户操作
   updateAccount: (account: Partial<AccountInfo>) => void;
@@ -155,6 +172,15 @@ export const useConfigStore = create<ConfigState>()(
         scrollBehavior: 'auto',
         showSiderIcon: true,
         autoSelectText: true,
+      },
+
+      // 智能菜单设置默认值
+      textSelection: {
+        enableTextSelection: true,
+        enableWriteTextSelection: true,
+        hotkey: 'option',
+        triggerCondition: 'selectText',
+        forbiddenWebsites: ['google.com', 'bing.com', 'baidu.com'],
       },
 
       // 账户信息 - 默认为null
@@ -266,6 +292,16 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
+      // 智能菜单设置操作
+      updateTextSelection: (settings) => set(
+        produce((state) => {
+          state.smartMenu = {
+            ...state.smartMenu,
+            ...settings
+          };
+        })
+      ),
+
       // 账户操作
       updateAccount: (account) => set(
         produce((state) => {
@@ -295,6 +331,7 @@ export const useSelectedProvider = () => useConfigStore(state => state.selectedP
 export const useAppearance = () => useConfigStore(state => state.appearance);
 export const useVoice = () => useConfigStore(state => state.voice);
 export const useSidebar = () => useConfigStore(state => state.sidebar);
+export const useTextSelection = () => useConfigStore(state => state.textSelection);
 export const useAccount = () => useConfigStore(state => state.account);
 
 // 根据当前选择的提供商获取可用模型

@@ -1,4 +1,5 @@
 import {
+  ApiOutlined,
   CloseOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -28,7 +29,7 @@ import {
   Select,
   Switch,
   Tooltip,
-  Typography
+  Typography,
 } from 'antd';
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
@@ -42,7 +43,14 @@ import {
   useSelectedProvider,
   useVoice,
 } from '../../stores/configStore';
-import { StyledDivider, StyledSection, StyledTitle } from './Wrapper';
+import {
+  Label,
+  StyledCard,
+  StyledDivider,
+  StyledSection,
+  StyledTitle,
+  TitleWithIcon,
+} from './Wrapper';
 
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -104,18 +112,6 @@ const ProviderLogo = styled.div`
 
 const ProviderName = styled(Text)`
   font-weight: 500;
-`;
-
-const Label = styled.div`
-  font-size: 16px;
-  font-weight: 500;
-  padding: 12px;
-`;
-
-const TitleWithIcon = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
 `;
 
 const ModalTitle = styled.div`
@@ -377,16 +373,6 @@ const GeneralSettings: React.FC = () => {
     setCurrentModels((prev) => prev.filter((model) => model.id !== modelId));
   };
 
-  // 处理AI提供商选择
-  const handleProviderSelect = (providerId: string) => {
-    setSelectedProvider(providerId);
-    // 加载当前提供商的模型
-    const provider = providers.find((p) => p.id === providerId);
-    if (provider) {
-      setCurrentModels(provider.models || []);
-    }
-  };
-
   // 处理配置按钮点击
   const handleConfigClick = (providerId: string) => {
     const provider = providers.find((p) => p.id === providerId);
@@ -543,10 +529,11 @@ const GeneralSettings: React.FC = () => {
       {contextHolder}
       {/* 账户设置部分 */}
       <StyledSection>
-        <StyledTitle level={4}>账户</StyledTitle>
-        <StyledDivider />
-
-        <Card size="small" hoverable>
+        <TitleWithIcon>
+          <UserOutlined />
+          <StyledTitle level={4}>账户</StyledTitle>
+        </TitleWithIcon>
+        <StyledCard>
           <Flex align="center" justify="space-between">
             <Avatar
               size={64}
@@ -569,7 +556,7 @@ const GeneralSettings: React.FC = () => {
               </LogoutButton>
             </UserActions>
           </Flex>
-        </Card>
+        </StyledCard>
       </StyledSection>
       <Form
         form={form}
@@ -579,10 +566,11 @@ const GeneralSettings: React.FC = () => {
       >
         {/* AI访问设置部分 */}
         <StyledSection>
-          <StyledTitle level={4}>AI访问</StyledTitle>
-          <StyledDivider />
-
-          <Card size="small" hoverable>
+          <TitleWithIcon>
+            <ApiOutlined />
+            <StyledTitle level={4}>AI访问</StyledTitle>
+          </TitleWithIcon>
+          <StyledCard>
             <Label>服务提供商</Label>
             <div>
               <Paragraph type="secondary" style={{ marginBottom: 16 }}>
@@ -644,7 +632,7 @@ const GeneralSettings: React.FC = () => {
                 添加服务提供商
               </AddProviderButton>
             </div>
-          </Card>
+          </StyledCard>
         </StyledSection>
 
         {/* 外观设置部分 */}
@@ -653,8 +641,7 @@ const GeneralSettings: React.FC = () => {
             <SettingOutlined />
             <StyledTitle level={4}>外观</StyledTitle>
           </TitleWithIcon>
-          <StyledDivider />
-          <Card size="small" hoverable>
+          <StyledCard>
             <Flex justify="space-between" align="center">
               <Label>显示模式</Label>
               <Form.Item name="displayMode" noStyle>
@@ -677,7 +664,6 @@ const GeneralSettings: React.FC = () => {
                 />
               </Form.Item>
             </Flex>
-
             <Flex justify="space-between" align="center">
               <Label>显示语言</Label>
               <Form.Item name="language" noStyle>
@@ -687,10 +673,7 @@ const GeneralSettings: React.FC = () => {
                 </Select>
               </Form.Item>
             </Flex>
-          </Card>
-        </StyledSection>
-        <StyledSection>
-          <Card size="small" hoverable>
+            <StyledDivider />
             <Flex justify="space-between" align="center">
               <Label>消息字体大小</Label>
               <Form.Item name="fontSize" noStyle>
@@ -721,10 +704,7 @@ const GeneralSettings: React.FC = () => {
                 />
               </Form.Item>
             </Flex>
-          </Card>
-        </StyledSection>
-        <StyledSection>
-          <Card size="small" hoverable>
+            <StyledDivider />
             <Flex justify="space-between" align="center">
               <Label>侧边栏位置</Label>
               <Button
@@ -734,7 +714,7 @@ const GeneralSettings: React.FC = () => {
                 打开浏览器侧边栏设置
               </Button>
             </Flex>
-          </Card>
+          </StyledCard>
         </StyledSection>
         {/* 朗读设置部分 */}
         <StyledSection>
@@ -742,9 +722,8 @@ const GeneralSettings: React.FC = () => {
             <SoundOutlined />
             <StyledTitle level={4}>朗读</StyledTitle>
           </TitleWithIcon>
-          <StyledDivider />
 
-          <Card size="small" hoverable>
+          <StyledCard>
             <Flex justify="space-between" align="center">
               <Label>朗读语音</Label>
               <Form.Item name="voiceType" noStyle>
@@ -795,7 +774,7 @@ const GeneralSettings: React.FC = () => {
                 />
               </Form.Item>
             </Flex>
-          </Card>
+          </StyledCard>
         </StyledSection>
       </Form>
 

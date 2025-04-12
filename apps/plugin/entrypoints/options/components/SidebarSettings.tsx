@@ -1,6 +1,5 @@
 import { MenuFoldOutlined, MessageOutlined } from '@ant-design/icons';
 import {
-  Card,
   Flex,
   Form,
   message,
@@ -9,23 +8,10 @@ import {
   Typography
 } from 'antd';
 import React, { useEffect } from 'react';
-import styled from 'styled-components';
 import { useConfigStore, useSidebar } from '../../stores/configStore';
-import { StyledDivider, StyledSection, StyledTitle } from './Wrapper';
+import { Label, StyledCard, StyledDivider, StyledSection, StyledTitle, TitleWithIcon } from './Wrapper';
 
 const { Text } = Typography;
-
-const Label = styled.div`
-  font-size: 16px;
-  font-weight: 500;
-  padding: 12px;
-`;
-
-const TitleWithIcon = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
 
 /**
  * 侧边栏设置组件
@@ -67,9 +53,8 @@ const SidebarSettings: React.FC = () => {
             <MessageOutlined />
             <StyledTitle level={4}>聊天</StyledTitle>
           </TitleWithIcon>
-          <StyledDivider />
 
-          <Card size="small" hoverable>
+          <StyledCard>
             <Label>当侧边栏重新打开时</Label>
             <Form.Item name="restoreChat" noStyle>
               <Radio.Group
@@ -94,12 +79,8 @@ const SidebarSettings: React.FC = () => {
             >
               如果在10分钟内重新打开，聊天将恢复；如果超过10分钟，将开始新的聊天
             </Text>
-          </Card>
-        </StyledSection>
-
-        <StyledSection>
-          <Card size="small" hoverable>
-            <Label>长回复的滚动行为</Label>
+          <StyledDivider />
+          <Label>长回复的滚动行为</Label>
             <Form.Item name="scrollBehavior" noStyle>
               <Radio.Group
                 style={{
@@ -113,12 +94,7 @@ const SidebarSettings: React.FC = () => {
                 <Radio value="auto">自动滚动到回复末尾</Radio>
               </Radio.Group>
             </Form.Item>
-          </Card>
-        </StyledSection>
-
-        <StyledSection>
-          <StyledDivider />
-          <Card size="small" hoverable>
+            <StyledDivider />
             <Flex justify="space-between" align="center">
               <Label>
                 在输入框中自动引用选中的文本
@@ -136,7 +112,7 @@ const SidebarSettings: React.FC = () => {
                 <Switch />
               </Form.Item>
             </Flex>
-          </Card>
+          </StyledCard>
         </StyledSection>
 
         <StyledSection>
@@ -144,9 +120,7 @@ const SidebarSettings: React.FC = () => {
             <MenuFoldOutlined />
             <StyledTitle level={4}>Sider图标</StyledTitle>
           </TitleWithIcon>
-          <StyledDivider />
-
-          <Card size="small" hoverable>
+          <StyledCard>
             <Flex justify="space-between" align="center">
               <Label>
                 始终在页面上显示Sider图标
@@ -164,7 +138,7 @@ const SidebarSettings: React.FC = () => {
                 <Switch />
               </Form.Item>
             </Flex>
-          </Card>
+          </StyledCard>
         </StyledSection>
       </Form>
     </>

@@ -9,7 +9,7 @@ import {
   TranslationOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, theme, Typography } from 'antd';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 // 配置页面组件
@@ -17,7 +17,7 @@ import GeneralSettings from './components/GeneralSettings';
 import KeyboardShortcutsSettings from './components/KeyboardShortcutsSettings';
 import PromptWordsSettings from './components/PromptWordsSettings';
 import SidebarSettings from './components/SidebarSettings';
-import SmartMenuSettings from './components/SmartMenuSettings';
+import TextSelectionSettings from './components/TextSelectionSettings';
 import TranslationSettings from './components/TranslationSettings';
 import WebHelperSettings from './components/WebHelperSettings';
 
@@ -56,13 +56,13 @@ const StyledSider = styled(Sider)`
 const StyledContentLayout = styled(Layout)`
   padding: 24px;
   overflow: auto;
+  background-color: #fff;
   height: calc(100vh - 64px);
 `;
 
 const StyledContent = styled(Content)`
-  padding: 24px;
+  padding: 0;
   margin: 0;
-  background-color: #fff;
   border-radius: 8px;
   display: table;
 `;
@@ -72,9 +72,8 @@ const StyledContent = styled(Content)`
  * 管理插件设置页面的整体布局和导航
  */
 const App: React.FC = () => {
-  const [activeMenuKey, setActiveMenuKey] = useState('generalSettings');
   const [collapsed, setCollapsed] = useState(false);
-
+  const [activeMenuKey, setActiveMenuKey] = useState('generalSettings');
   // 获取主题配置
   const { token } = theme.useToken();
 
@@ -91,9 +90,14 @@ const App: React.FC = () => {
       label: '侧边栏',
     },
     {
-      key: 'smartMenu',
+      key: 'textSelection',
       icon: <ApiOutlined />,
-      label: '智能菜单',
+      label: '划词助手',
+    },
+    {
+      key: 'promptWords',
+      icon: <CodeOutlined />,
+      label: '提示词',
     },
     {
       key: 'translation',
@@ -105,11 +109,7 @@ const App: React.FC = () => {
       icon: <GlobalOutlined />,
       label: '网页助手',
     },
-    {
-      key: 'promptWords',
-      icon: <CodeOutlined />,
-      label: '提示词',
-    },
+
     {
       key: 'keyboardShortcuts',
       icon: <KeyOutlined />,
@@ -124,8 +124,8 @@ const App: React.FC = () => {
         return <GeneralSettings />;
       case 'sidebar':
         return <SidebarSettings />;
-      case 'smartMenu':
-        return <SmartMenuSettings />;
+      case 'textSelection':
+        return <TextSelectionSettings />;
       case 'translation':
         return <TranslationSettings />;
       case 'webHelper':
@@ -148,9 +148,9 @@ const App: React.FC = () => {
   const CollapseButton = styled.div`
     position: absolute;
     right: -12px;
-    top: 72px;
-    width: 24px;
-    height: 24px;
+    top: 300px;
+    width: 30px;
+    height: 30px;
     background-color: #fff;
     border-radius: 50%;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
@@ -186,13 +186,14 @@ const App: React.FC = () => {
             mode="inline"
             selectedKeys={[activeMenuKey]}
             items={menuItems}
-            onClick={({ key }) => setActiveMenuKey(key)}
+            onClick={({ key }) => {
+              setActiveMenuKey(key);
+            }}
           />
         </StyledSider>
         <StyledContentLayout>
           <StyledContent
             style={{
-              background: token.colorBgContainer,
               borderRadius: token.borderRadiusLG,
             }}
           >
