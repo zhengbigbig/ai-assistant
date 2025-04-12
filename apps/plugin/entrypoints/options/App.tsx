@@ -9,7 +9,7 @@ import {
   TranslationOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, theme, Typography } from 'antd';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 // 配置页面组件
@@ -67,6 +67,45 @@ const StyledContent = styled(Content)`
   display: table;
 `;
 
+// 菜单项配置
+const menuItems = [
+  {
+    key: 'generalSettings',
+    icon: <SettingOutlined />,
+    label: '通用配置',
+  },
+  {
+    key: 'sidebar',
+    icon: <MenuFoldOutlined />,
+    label: '侧边栏',
+  },
+  {
+    key: 'textSelection',
+    icon: <ApiOutlined />,
+    label: '划词助手',
+  },
+  {
+    key: 'promptWords',
+    icon: <CodeOutlined />,
+    label: '提示词',
+  },
+  {
+    key: 'translation',
+    icon: <TranslationOutlined />,
+    label: '翻译',
+  },
+  {
+    key: 'webHelper',
+    icon: <GlobalOutlined />,
+    label: '网页助手',
+  },
+  {
+    key: 'keyboardShortcuts',
+    icon: <KeyOutlined />,
+    label: '键盘快捷键',
+  },
+];
+
 /**
  * App组件
  * 管理插件设置页面的整体布局和导航
@@ -77,45 +116,38 @@ const App: React.FC = () => {
   // 获取主题配置
   const { token } = theme.useToken();
 
-  // 菜单项配置
-  const menuItems = [
-    {
-      key: 'generalSettings',
-      icon: <SettingOutlined />,
-      label: '通用配置',
-    },
-    {
-      key: 'sidebar',
-      icon: <MenuFoldOutlined />,
-      label: '侧边栏',
-    },
-    {
-      key: 'textSelection',
-      icon: <ApiOutlined />,
-      label: '划词助手',
-    },
-    {
-      key: 'promptWords',
-      icon: <CodeOutlined />,
-      label: '提示词',
-    },
-    {
-      key: 'translation',
-      icon: <TranslationOutlined />,
-      label: '翻译',
-    },
-    {
-      key: 'webHelper',
-      icon: <GlobalOutlined />,
-      label: '网页助手',
-    },
+  // 验证菜单键是否有效
+  const isValidMenuKey = useCallback((key: string) => {
+    return menuItems.some((item) => item.key === key);
+  }, []);
 
-    {
-      key: 'keyboardShortcuts',
-      icon: <KeyOutlined />,
-      label: '键盘快捷键',
+  // 初始化时从URL读取查询参数
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const menuKey = urlParams.get('activeMenuKey');
+
+    if (menuKey && isValidMenuKey(menuKey)) {
+      setActiveMenuKey(menuKey);
+    }
+  }, [isValidMenuKey]);
+
+  // 更新URL查询参数
+  const updateUrlParams = useCallback((key: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('activeMenuKey', key);
+    window.history.pushState({}, '', url.toString());
+  }, []);
+
+  // 菜单点击处理函数
+  const handleMenuClick = useCallback(
+    (key: string) => {
+      if (activeMenuKey !== key) {
+        setActiveMenuKey(key);
+        updateUrlParams(key);
+      }
     },
-  ];
+    [activeMenuKey, updateUrlParams]
+  );
 
   // 渲染当前选中的内容
   const renderContent = () => {
@@ -126,12 +158,13 @@ const App: React.FC = () => {
         return <SidebarSettings />;
       case 'textSelection':
         return <TextSelectionSettings />;
+      case 'promptWords':
+        return <PromptWordsSettings />;
       case 'translation':
         return <TranslationSettings />;
       case 'webHelper':
         return <WebHelperSettings />;
-      case 'promptWords':
-        return <PromptWordsSettings />;
+
       case 'keyboardShortcuts':
         return <KeyboardShortcutsSettings />;
       default:
@@ -186,9 +219,7 @@ const App: React.FC = () => {
             mode="inline"
             selectedKeys={[activeMenuKey]}
             items={menuItems}
-            onClick={({ key }) => {
-              setActiveMenuKey(key);
-            }}
+            onClick={({ key }) => handleMenuClick(key)}
           />
         </StyledSider>
         <StyledContentLayout>
