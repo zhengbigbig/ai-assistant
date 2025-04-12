@@ -1,23 +1,30 @@
+import { MenuFoldOutlined, MessageOutlined } from '@ant-design/icons';
+import {
+  Card,
+  Flex,
+  Form,
+  message,
+  Radio,
+  Switch,
+  Typography
+} from 'antd';
 import React, { useEffect } from 'react';
 import styled from 'styled-components';
-import { Typography, Form, Select, Switch, Button, message } from 'antd';
-import { SaveOutlined } from '@ant-design/icons';
+import { useConfigStore, useSidebar } from '../../stores/configStore';
+import { StyledDivider, StyledSection, StyledTitle } from './Wrapper';
 
-const { Title } = Typography;
-const { Option } = Select;
+const { Text } = Typography;
 
-const StyledTitle = styled(Title)`
-  margin-bottom: 24px;
+const Label = styled.div`
+  font-size: 16px;
+  font-weight: 500;
+  padding: 12px;
 `;
 
-const StyledDivider = styled.div`
-  height: 1px;
-  background-color: #f0f0f0;
-  margin: 24px 0;
-`;
-
-const SubmitButton = styled(Button)`
-  margin-top: 32px;
+const TitleWithIcon = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `;
 
 /**
@@ -28,95 +35,137 @@ const SidebarSettings: React.FC = () => {
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
 
-  // 加载设置
+  // 从store获取侧边栏设置和更新方法
+  const sidebar = useSidebar();
+  const { updateSidebar } = useConfigStore();
+
+  // 加载设置到表单
   useEffect(() => {
-    chrome.storage.sync.get(
-      [
-        'enableSidebar',
-        'sidebarWidth',
-      ],
-      (result) => {
-        form.setFieldsValue({
-          enableSidebar: result.enableSidebar !== undefined ? result.enableSidebar : true,
-          sidebarWidth: result.sidebarWidth || 'medium',
-        });
-      }
-    );
-  }, [form]);
+    form.setFieldsValue({
+      ...sidebar,
+    });
+  }, [form, sidebar]);
 
   // 保存设置
-  const saveSettings = (values: any) => {
-    chrome.storage.sync.set(
-      values,
-      () => {
-        messageApi.success('设置已保存！');
-      }
-    );
+  const handleValuesChange = (changedValues: any, allValues: any) => {
+    updateSidebar(changedValues);
+    messageApi.success('设置已保存');
   };
 
   return (
     <>
       {contextHolder}
-      <StyledTitle level={3}>侧边栏</StyledTitle>
-      <StyledDivider />
-
       <Form
         form={form}
         layout="vertical"
-        onFinish={saveSettings}
+        onValuesChange={handleValuesChange}
         style={{ maxWidth: 800 }}
       >
-        <Form.Item
-          name="enableSidebar"
-          label="启用侧边栏功能"
-          valuePropName="checked"
-          extra="允许在浏览器右侧显示AI助手侧边栏"
-        >
-          <Switch />
-        </Form.Item>
+        {/* 聊天设置部分 */}
+        <StyledSection>
+          <TitleWithIcon>
+            <MessageOutlined />
+            <StyledTitle level={4}>聊天</StyledTitle>
+          </TitleWithIcon>
+          <StyledDivider />
 
-        <Form.Item
-          name="sidebarWidth"
-          label="侧边栏宽度"
-          extra="设置侧边栏的默认宽度"
-        >
-          <Select>
-            <Option value="narrow">窄</Option>
-            <Option value="medium">中等</Option>
-            <Option value="wide">宽</Option>
-          </Select>
-        </Form.Item>
+          <Card size="small" hoverable>
+            <Label>当侧边栏重新打开时</Label>
+            <Form.Item name="restoreChat" noStyle>
+              <Radio.Group
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  marginLeft: 12,
+                }}
+              >
+                <Radio value="always">始终开始新的聊天</Radio>
+                <Radio value="restore">始终恢复上次的聊天</Radio>
+                <Radio value="auto">自动恢复或重新开始</Radio>
+              </Radio.Group>
+            </Form.Item>
+            <Text
+              type="secondary"
+              style={{
+                paddingLeft: 36,
+                display: 'block',
+              }}
+            >
+              如果在10分钟内重新打开，聊天将恢复；如果超过10分钟，将开始新的聊天
+            </Text>
+          </Card>
+        </StyledSection>
 
-        <Form.Item
-          name="sidebarPosition"
-          label="侧边栏位置"
-          extra="设置侧边栏的显示位置"
-        >
-          <Select>
-            <Option value="right">右侧</Option>
-            <Option value="left">左侧</Option>
-          </Select>
-        </Form.Item>
+        <StyledSection>
+          <Card size="small" hoverable>
+            <Label>长回复的滚动行为</Label>
+            <Form.Item name="scrollBehavior" noStyle>
+              <Radio.Group
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  marginLeft: 12,
+                }}
+              >
+                <Radio value="bottom">当回复到达顶部时暂停演示</Radio>
+                <Radio value="auto">自动滚动到回复末尾</Radio>
+              </Radio.Group>
+            </Form.Item>
+          </Card>
+        </StyledSection>
 
-        <Form.Item
-          name="autoHideSidebar"
-          label="自动隐藏侧边栏"
-          valuePropName="checked"
-          extra="当不使用时自动隐藏侧边栏"
-        >
-          <Switch />
-        </Form.Item>
+        <StyledSection>
+          <StyledDivider />
+          <Card size="small" hoverable>
+            <Flex justify="space-between" align="center">
+              <Label>
+                在输入框中自动引用选中的文本
+                <Text
+                  type="secondary"
+                  style={{
+                    display: 'block',
+                    fontWeight: 400,
+                  }}
+                >
+                  开启时，选中文本会自动出现在输入框中以便快速操作
+                </Text>
+              </Label>
+              <Form.Item name="autoSelectText" noStyle>
+                <Switch />
+              </Form.Item>
+            </Flex>
+          </Card>
+        </StyledSection>
 
-        <Form.Item>
-          <SubmitButton
-            type="primary"
-            htmlType="submit"
-            icon={<SaveOutlined />}
-            size="large"
-          >
-            保存设置
-          </SubmitButton>
-        </Form.Item>
+        <StyledSection>
+          <TitleWithIcon>
+            <MenuFoldOutlined />
+            <StyledTitle level={4}>Sider图标</StyledTitle>
+          </TitleWithIcon>
+          <StyledDivider />
+
+          <Card size="small" hoverable>
+            <Flex justify="space-between" align="center">
+              <Label>
+                始终在页面上显示Sider图标
+                <Text
+                  type="secondary"
+                  style={{
+                    display: 'block',
+                    fontWeight: 400,
+                  }}
+                >
+                  开启时，Sider图标会出现在右下角并可拖动
+                </Text>
+              </Label>
+              <Form.Item name="showSiderIcon" noStyle>
+                <Switch />
+              </Form.Item>
+            </Flex>
+          </Card>
+        </StyledSection>
       </Form>
     </>
   );

@@ -24,13 +24,11 @@ import {
   message,
   Modal,
   Popconfirm,
-  Radio,
   Row,
   Select,
-  Slider,
   Switch,
   Tooltip,
-  Typography,
+  Typography
 } from 'antd';
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
@@ -44,22 +42,10 @@ import {
   useSelectedProvider,
   useVoice,
 } from '../../stores/configStore';
+import { StyledDivider, StyledSection, StyledTitle } from './Wrapper';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text, Paragraph } = Typography;
 const { Option } = Select;
-
-// 样式组件
-const StyledSection = styled.div`
-  margin-bottom: 32px;
-`;
-
-const StyledTitle = styled(Title)`
-  margin: 0 !important;
-`;
-
-const StyledDivider = styled(Divider)`
-  margin: 24px 0;
-`;
 
 const UserInfo = styled.div`
   margin-left: 16px;
@@ -701,7 +687,10 @@ const GeneralSettings: React.FC = () => {
                 </Select>
               </Form.Item>
             </Flex>
-
+          </Card>
+        </StyledSection>
+        <StyledSection>
+          <Card size="small" hoverable>
             <Flex justify="space-between" align="center">
               <Label>消息字体大小</Label>
               <Form.Item name="fontSize" noStyle>

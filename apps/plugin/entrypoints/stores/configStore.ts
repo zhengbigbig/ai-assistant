@@ -34,6 +34,13 @@ export interface VoiceSettings {
   voiceSpeed: number;
 }
 
+// 侧边栏设置接口
+export interface SidebarSettings {
+  // 聊天设置
+  restoreChat: 'always' | 'restore' | 'auto';
+  scrollBehavior: 'bottom' | 'auto';
+}
+
 // 账户信息接口
 export interface AccountInfo {
   name: string;
@@ -52,6 +59,9 @@ export interface ConfigState {
 
   // 朗读设置
   voice: VoiceSettings;
+
+  // 侧边栏设置
+  sidebar: SidebarSettings;
 
   // 账户信息
   account: AccountInfo | null;
@@ -73,6 +83,9 @@ export interface ConfigState {
 
   // 朗读设置操作
   updateVoice: (settings: Partial<VoiceSettings>) => void;
+
+  // 侧边栏设置操作
+  updateSidebar: (settings: Partial<SidebarSettings>) => void;
 
   // 账户操作
   updateAccount: (account: Partial<AccountInfo>) => void;
@@ -134,6 +147,14 @@ export const useConfigStore = create<ConfigState>()(
       voice: {
         voiceType: 'robot',
         voiceSpeed: 1.0,
+      },
+
+      // 侧边栏设置默认值
+      sidebar: {
+        restoreChat: 'auto',
+        scrollBehavior: 'auto',
+        showSiderIcon: true,
+        autoSelectText: true,
       },
 
       // 账户信息 - 默认为null
@@ -235,6 +256,16 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
+      // 侧边栏设置操作
+      updateSidebar: (settings) => set(
+        produce((state) => {
+          state.sidebar = {
+            ...state.sidebar,
+            ...settings
+          };
+        })
+      ),
+
       // 账户操作
       updateAccount: (account) => set(
         produce((state) => {
@@ -263,6 +294,7 @@ export const useProviders = () => useConfigStore(state => state.providers);
 export const useSelectedProvider = () => useConfigStore(state => state.selectedProvider);
 export const useAppearance = () => useConfigStore(state => state.appearance);
 export const useVoice = () => useConfigStore(state => state.voice);
+export const useSidebar = () => useConfigStore(state => state.sidebar);
 export const useAccount = () => useConfigStore(state => state.account);
 
 // 根据当前选择的提供商获取可用模型
