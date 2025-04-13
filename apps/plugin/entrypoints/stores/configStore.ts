@@ -28,6 +28,20 @@ export interface AppearanceSettings {
   fontSize: number;
 }
 
+// 翻译设置接口
+export interface TranslationSettings {
+  targetLanguage: string;
+  displayMode: 'dual' | 'replace';
+  translationService: 'google' | 'glm' | 'default';
+  displayStyle: 'underline' | 'background' | 'border';
+  forbiddenWebsites: string[];
+  enableVideoSubtitleTranslation: boolean;
+  enableInputTranslation: boolean;
+  enableHoverTranslation: boolean;
+  hoverHotkey: string;
+  hoverTranslationService: 'google' | 'glm' | 'default';
+}
+
 // 朗读设置接口
 export interface VoiceSettings {
   voiceType: string;
@@ -96,6 +110,9 @@ export interface ConfigState {
   // 提示词设置
   promptWords: PromptWordsSettings;
 
+  // 翻译设置
+  translation: TranslationSettings;
+
   // 账户信息
   account: AccountInfo | null;
 
@@ -129,6 +146,9 @@ export interface ConfigState {
   updatePromptWord: (id: string, updates: Partial<PromptWordItem>) => void;
   removePromptWord: (id: string) => void;
   reorderPromptWords: (promptWords: PromptWordItem[]) => void;
+
+  // 翻译设置操作
+  updateTranslation: (settings: Partial<TranslationSettings>) => void;
 
   // 账户操作
   updateAccount: (account: Partial<AccountInfo>) => void;
@@ -224,6 +244,20 @@ export const useConfigStore = create<ConfigState>()(
           { id: '8', name: '内容精简', content: '压缩长度', category: '压缩长度', order: 7, scenes: ['写作'] },
           { id: '9', name: '内容扩展', content: '扩展长度', category: '扩展长度', order: 8, scenes: ['写作'] },
         ],
+      },
+
+      // 翻译设置默认值
+      translation: {
+        targetLanguage: 'zh-CN',
+        displayMode: 'dual',
+        translationService: 'google',
+        displayStyle: 'underline',
+        forbiddenWebsites: [],
+        enableVideoSubtitleTranslation: true,
+        enableInputTranslation: false,
+        enableHoverTranslation: true,
+        hoverHotkey: 'option',
+        hoverTranslationService: 'google'
       },
 
       // 账户信息 - 默认为null
@@ -394,6 +428,16 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
+      // 翻译设置操作
+      updateTranslation: (settings: Partial<TranslationSettings>) => set(
+        produce((state: ConfigState) => {
+          state.translation = {
+            ...state.translation,
+            ...settings
+          };
+        })
+      ),
+
       // 账户操作
       updateAccount: (account: Partial<AccountInfo>) => set(
         produce((state: ConfigState) => {
@@ -426,6 +470,7 @@ export const useSidebar = () => useConfigStore(state => state.sidebar);
 export const useTextSelection = () => useConfigStore(state => state.textSelection);
 export const useAccount = () => useConfigStore(state => state.account);
 export const usePromptWords = () => useConfigStore(state => state.promptWords);
+export const useTranslation = () => useConfigStore(state => state.translation);
 
 // 根据当前选择的提供商获取可用模型
 export const useAvailableModels = () => {
