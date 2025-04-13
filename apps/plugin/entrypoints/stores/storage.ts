@@ -1,11 +1,11 @@
-import { PersistStorage } from 'zustand/middleware';
+import { PersistOptions } from 'zustand/middleware';
 
 /**
  * 创建适用于zustand persist中间件的chrome.storage适配器
  * @param storageType 存储类型，可选'sync'或'local'
  * @returns 适配器对象
  */
-export const createStorageAdapter = (storageType: 'sync' | 'local' = 'sync'): PersistStorage<any> => {
+export const createStorageAdapter = (storageType: 'sync' | 'local' = 'sync'): PersistOptions<any, any>['storage'] => {
   // 根据传入的类型选择存储对象
   const storage = storageType === 'sync' ? chrome.storage.sync : chrome.storage.local;
 

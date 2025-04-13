@@ -103,7 +103,7 @@ const TextSelectionSettings: React.FC = () => {
           <StyledCard>
             <Flex justify="space-between" align="center">
               <Label>
-                网页文本划词
+                阅读 - 网页文本划词
                 <Text
                   type="secondary"
                   style={{
@@ -125,7 +125,7 @@ const TextSelectionSettings: React.FC = () => {
             <StyledDivider />
             <Flex justify="space-between" align="center">
               <Label>
-                写作文本划词
+                写作 - 写作文本划词
                 <Text
                   type="secondary"
                   style={{

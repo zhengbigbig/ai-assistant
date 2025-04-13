@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, PersistOptions } from 'zustand/middleware';
 import { produce } from 'immer';
 import syncStorageAdapter from './storage';
 
@@ -43,13 +43,29 @@ export interface SidebarSettings {
   autoSelectText: boolean;
 }
 
-// 智能菜单设置接口
+// 划词功能设置接口
 export interface TextSelectionSettings {
   enableTextSelection: boolean;
   enableWriteTextSelection: boolean;
   hotkey: string;
   triggerCondition: 'selectText' | 'selectTextAndPressHotkey';
   forbiddenWebsites: string[];
+}
+
+// 提示词设置接口
+export interface PromptWordItem {
+  id: string;
+  name: string; // 提示词名称
+  content: string;
+  category?: string;
+  order: number;
+  scenes?: string[]; // 应用场景，如"聊天/提问"、"阅读"、"写作"等
+}
+
+export interface PromptWordsSettings {
+  enablePromptSuggestions: boolean;
+  showPromptShortcuts: boolean;
+  promptWords: PromptWordItem[];
 }
 
 // 账户信息接口
@@ -74,8 +90,11 @@ export interface ConfigState {
   // 侧边栏设置
   sidebar: SidebarSettings;
 
-  // 智能菜单设置
+  // 划词功能设置
   textSelection: TextSelectionSettings;
+
+  // 提示词设置
+  promptWords: PromptWordsSettings;
 
   // 账户信息
   account: AccountInfo | null;
@@ -101,8 +120,15 @@ export interface ConfigState {
   // 侧边栏设置操作
   updateSidebar: (settings: Partial<SidebarSettings>) => void;
 
-  // 智能菜单设置操作
+  // 划词功能设置操作
   updateTextSelection: (settings: Partial<TextSelectionSettings>) => void;
+
+  // 提示词操作
+  updatePromptWords: (settings: Partial<PromptWordsSettings>) => void;
+  addPromptWord: (promptWord: Omit<PromptWordItem, 'id' | 'order'>) => void;
+  updatePromptWord: (id: string, updates: Partial<PromptWordItem>) => void;
+  removePromptWord: (id: string) => void;
+  reorderPromptWords: (promptWords: PromptWordItem[]) => void;
 
   // 账户操作
   updateAccount: (account: Partial<AccountInfo>) => void;
@@ -174,7 +200,7 @@ export const useConfigStore = create<ConfigState>()(
         autoSelectText: true,
       },
 
-      // 智能菜单设置默认值
+      // 划词功能设置默认值
       textSelection: {
         enableTextSelection: true,
         enableWriteTextSelection: true,
@@ -183,18 +209,35 @@ export const useConfigStore = create<ConfigState>()(
         forbiddenWebsites: ['google.com', 'bing.com', 'baidu.com'],
       },
 
+      // 提示词设置默认值
+      promptWords: {
+        enablePromptSuggestions: true,
+        showPromptShortcuts: true,
+        promptWords: [
+          { id: '1', name: '翻译成中文', content: '翻译以下内容到中文', category: '翻译', order: 0, scenes: ['聊天/提问', '阅读'] },
+          { id: '2', name: '内容总结', content: '总结以下内容的要点', category: '总结', order: 1, scenes: ['聊天/提问', '阅读'] },
+          { id: '3', name: '改善写作', content: '改善以下写作', category: '改善写作', order: 2, scenes: ['写作'] },
+          { id: '4', name: '语法纠正', content: '纠正语法错误', category: '纠正语法', order: 3, scenes: ['写作'] },
+          { id: '5', name: '问题回答', content: '回答此问题', category: '回答此问题', order: 4, scenes: ['聊天/提问'] },
+          { id: '6', name: '代码解释', content: '解释代码', category: '解释代码', order: 5, scenes: ['聊天/提问', '阅读'] },
+          { id: '7', name: '行动事项', content: '列出行动事项', category: '列出行动事项', order: 6, scenes: ['阅读'] },
+          { id: '8', name: '内容精简', content: '压缩长度', category: '压缩长度', order: 7, scenes: ['写作'] },
+          { id: '9', name: '内容扩展', content: '扩展长度', category: '扩展长度', order: 8, scenes: ['写作'] },
+        ],
+      },
+
       // 账户信息 - 默认为null
       account: null,
 
       // 提供商操作
-      addProvider: (provider) => set(
-        produce((state) => {
+      addProvider: (provider: ProviderType) => set(
+        produce((state: ConfigState) => {
           state.providers.push(provider);
         })
       ),
 
-      updateProvider: (id, updates) => set(
-        produce((state) => {
+      updateProvider: (id: string, updates: Partial<ProviderType>) => set(
+        produce((state: ConfigState) => {
           const providerIndex = state.providers.findIndex((p: ProviderType) => p.id === id);
           if (providerIndex !== -1) {
             state.providers[providerIndex] = {
@@ -205,8 +248,8 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
-      removeProvider: (id) => set(
-        produce((state) => {
+      removeProvider: (id: string) => set(
+        produce((state: ConfigState) => {
           state.providers = state.providers.filter((p: ProviderType) => p.id !== id);
           if (state.selectedProvider === id) {
             state.selectedProvider = state.providers.length > 0 ? state.providers[0].id : null;
@@ -214,11 +257,11 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
-      setSelectedProvider: (id) => set({ selectedProvider: id }),
+      setSelectedProvider: (id: string | null) => set({ selectedProvider: id }),
 
       // 模型操作
-      addModel: (providerId, model) => set(
-        produce((state) => {
+      addModel: (providerId: string, model: ModelType) => set(
+        produce((state: ConfigState) => {
           const provider = state.providers.find((p: ProviderType) => p.id === providerId);
           if (provider) {
             provider.models.push(model);
@@ -226,8 +269,8 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
-      updateModel: (providerId, modelId, updates) => set(
-        produce((state) => {
+      updateModel: (providerId: string, modelId: string, updates: Partial<ModelType>) => set(
+        produce((state: ConfigState) => {
           const provider = state.providers.find((p: ProviderType) => p.id === providerId);
           if (provider) {
             const modelIndex = provider.models.findIndex((m: ModelType) => m.id === modelId);
@@ -241,8 +284,8 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
-      removeModel: (providerId, modelId) => set(
-        produce((state) => {
+      removeModel: (providerId: string, modelId: string) => set(
+        produce((state: ConfigState) => {
           const provider = state.providers.find((p: ProviderType) => p.id === providerId);
           if (provider) {
             provider.models = provider.models.filter((m: ModelType) => m.id !== modelId);
@@ -250,8 +293,8 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
-      toggleModelEnabled: (providerId, modelId, enabled) => set(
-        produce((state) => {
+      toggleModelEnabled: (providerId: string, modelId: string, enabled: boolean) => set(
+        produce((state: ConfigState) => {
           const provider = state.providers.find((p: ProviderType) => p.id === providerId);
           if (provider) {
             const model = provider.models.find((m: ModelType) => m.id === modelId);
@@ -263,8 +306,8 @@ export const useConfigStore = create<ConfigState>()(
       ),
 
       // 外观设置操作
-      updateAppearance: (settings) => set(
-        produce((state) => {
+      updateAppearance: (settings: Partial<AppearanceSettings>) => set(
+        produce((state: ConfigState) => {
           state.appearance = {
             ...state.appearance,
             ...settings
@@ -273,8 +316,8 @@ export const useConfigStore = create<ConfigState>()(
       ),
 
       // 朗读设置操作
-      updateVoice: (settings) => set(
-        produce((state) => {
+      updateVoice: (settings: Partial<VoiceSettings>) => set(
+        produce((state: ConfigState) => {
           state.voice = {
             ...state.voice,
             ...settings
@@ -283,8 +326,8 @@ export const useConfigStore = create<ConfigState>()(
       ),
 
       // 侧边栏设置操作
-      updateSidebar: (settings) => set(
-        produce((state) => {
+      updateSidebar: (settings: Partial<SidebarSettings>) => set(
+        produce((state: ConfigState) => {
           state.sidebar = {
             ...state.sidebar,
             ...settings
@@ -292,28 +335,77 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
-      // 智能菜单设置操作
-      updateTextSelection: (settings) => set(
-        produce((state) => {
-          state.smartMenu = {
-            ...state.smartMenu,
+      // 划词功能设置操作
+      updateTextSelection: (settings: Partial<TextSelectionSettings>) => set(
+        produce((state: ConfigState) => {
+          state.textSelection = {
+            ...state.textSelection,
             ...settings
           };
         })
       ),
 
-      // 账户操作
-      updateAccount: (account) => set(
-        produce((state) => {
-          state.account = {
-            ...state.account,
-            ...account
+      // 提示词操作
+      updatePromptWords: (settings: Partial<PromptWordsSettings>) => set(
+        produce((state: ConfigState) => {
+          state.promptWords = {
+            ...state.promptWords,
+            ...settings
           };
         })
       ),
 
+      addPromptWord: (promptWord: Omit<PromptWordItem, 'id' | 'order'>) => set(
+        produce((state: ConfigState) => {
+          const newId = Date.now().toString();
+          const maxOrder = state.promptWords.promptWords.length > 0
+            ? Math.max(...state.promptWords.promptWords.map((p: PromptWordItem) => p.order))
+            : -1;
+
+          state.promptWords.promptWords.push({
+            ...promptWord,
+            id: newId,
+            order: maxOrder + 1
+          });
+        })
+      ),
+
+      updatePromptWord: (id: string, updates: Partial<PromptWordItem>) => set(
+        produce((state: ConfigState) => {
+          const index = state.promptWords.promptWords.findIndex((p: PromptWordItem) => p.id === id);
+          if (index !== -1) {
+            state.promptWords.promptWords[index] = {
+              ...state.promptWords.promptWords[index],
+              ...updates
+            };
+          }
+        })
+      ),
+
+      removePromptWord: (id: string) => set(
+        produce((state: ConfigState) => {
+          state.promptWords.promptWords = state.promptWords.promptWords.filter((p: PromptWordItem) => p.id !== id);
+        })
+      ),
+
+      reorderPromptWords: (promptWords: PromptWordItem[]) => set(
+        produce((state: ConfigState) => {
+          state.promptWords.promptWords = promptWords;
+        })
+      ),
+
+      // 账户操作
+      updateAccount: (account: Partial<AccountInfo>) => set(
+        produce((state: ConfigState) => {
+          state.account = {
+            ...state.account,
+            ...account
+          } as AccountInfo;
+        })
+      ),
+
       logout: () => set(
-        produce((state) => {
+        produce((state: ConfigState) => {
           state.account = null;
         })
       ),
@@ -333,6 +425,7 @@ export const useVoice = () => useConfigStore(state => state.voice);
 export const useSidebar = () => useConfigStore(state => state.sidebar);
 export const useTextSelection = () => useConfigStore(state => state.textSelection);
 export const useAccount = () => useConfigStore(state => state.account);
+export const usePromptWords = () => useConfigStore(state => state.promptWords);
 
 // 根据当前选择的提供商获取可用模型
 export const useAvailableModels = () => {
