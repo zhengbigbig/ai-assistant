@@ -1,16 +1,26 @@
 import {
+  ApiOutlined,
   ControlOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  EyeInvisibleOutlined,
+  EyeTwoTone,
   GlobalOutlined,
   PlusOutlined,
   TranslationOutlined,
 } from '@ant-design/icons';
 import {
   Button,
+  Col,
+  Empty,
   Flex,
   Form,
   Input,
   message,
+  Modal,
+  Popconfirm,
   Radio,
+  Row,
   Select,
   Space,
   Switch,
@@ -18,8 +28,9 @@ import {
   Typography,
 } from 'antd';
 import React, { useEffect, useState } from 'react';
-import { useConfigStore, useTranslation } from '../../stores/configStore';
-import type { TranslationSettings } from '../../stores/configStore';
+import styled from 'styled-components';
+import { useConfigStore, useProviders, useSelectedProvider, useTranslation } from '../../stores/configStore';
+import type { ProviderType, TranslationSettings } from '../../stores/configStore';
 import {
   Label,
   StyledCard,
@@ -31,6 +42,63 @@ import {
 
 const { Text, Paragraph } = Typography;
 
+// 样式化组件
+const ProviderItem = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  transition: all 0.3s;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #d9d9d9;
+    background-color: #fafafa;
+  }
+
+  &.selected {
+    border-color: #1890ff;
+    background-color: #e6f7ff;
+  }
+`;
+
+const ProviderInfo = styled.div`
+  display: flex;
+  align-items: center;
+`;
+
+const ProviderLogo = styled.div`
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+
+  img {
+    max-width: 100%;
+    max-height: 100%;
+  }
+`;
+
+const ProviderName = styled(Text)`
+  font-weight: 500;
+`;
+
+const ProviderActions = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+
+const AddProviderButton = styled(Button)`
+  width: 100%;
+  margin-top: 16px;
+  border-style: dashed;
+`;
+
 /**
  * 翻译设置组件
  * 管理页面翻译和文本翻译相关的配置
@@ -39,11 +107,18 @@ const TranslationSettings: React.FC = () => {
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
   const [forbiddenWebsite, setForbiddenWebsite] = useState<string>('');
+  const [translationProviderModal, setTranslationProviderModal] = useState(false);
+  const [currentProvider, setCurrentProvider] = useState<ProviderType | null>(null);
+  const [translationProviderForm] = Form.useForm();
+  const [addProviderModalVisible, setAddProviderModalVisible] = useState(false);
+  const [addProviderForm] = Form.useForm();
 
   // 从store获取翻译设置和更新方法
   const translation = useTranslation();
   const { forbiddenWebsites } = translation;
   const { updateTranslation } = useConfigStore();
+  const providers = useProviders();
+  const selectedProvider = useSelectedProvider();
 
   // 确保enable开关使用默认值
   const formInitialValues: TranslationSettings = {
@@ -70,7 +145,37 @@ const TranslationSettings: React.FC = () => {
       };
       form.setFieldsValue(mergedValues);
     }
+
+    // 确保默认翻译服务存在
+    ensureDefaultTranslationServices();
   }, [form, translation]);
+
+  // 确保默认翻译服务存在
+  const ensureDefaultTranslationServices = () => {
+    const { providers, addProvider } = useConfigStore.getState();
+
+    // 检查是否存在谷歌翻译
+    if (!providers.some(p => p.id === 'google')) {
+      addProvider({
+        id: 'google',
+        name: '谷歌翻译',
+        apiKey: '',
+        baseUrl: 'https://translate.googleapis.com/translate_a/single',
+        models: []
+      });
+    }
+
+    // 检查是否存在智谱GLM翻译
+    if (!providers.some(p => p.id === 'glm')) {
+      addProvider({
+        id: 'glm',
+        name: '智谱GLM翻译',
+        apiKey: '',
+        baseUrl: '',
+        models: []
+      });
+    }
+  };
 
   // 保存设置
   const handleValuesChange = (changedValues: any, allValues: any) => {
@@ -106,6 +211,112 @@ const TranslationSettings: React.FC = () => {
     updateTranslation({ forbiddenWebsites: newForbiddenWebsites });
   };
 
+  // 处理翻译服务提供商配置点击
+  const handleTranslationProviderConfig = (e: React.MouseEvent, providerId: string) => {
+    e.stopPropagation(); // 阻止事件冒泡
+    const provider = providers.find(p => p.id === providerId);
+    if (provider) {
+      setCurrentProvider(provider);
+      translationProviderForm.setFieldsValue({
+        id: provider.id,
+        name: provider.name,
+        apiKey: provider.apiKey,
+        baseUrl: provider.baseUrl
+      });
+      setTranslationProviderModal(true);
+    }
+  };
+
+  // 处理删除翻译服务提供商
+  const handleDeleteTranslationProvider = (e: React.MouseEvent, providerId: string) => {
+    e.stopPropagation(); // 阻止事件冒泡
+
+    // 不允许删除默认的谷歌和智谱翻译
+    if (providerId === 'google' || providerId === 'glm') {
+      messageApi.warning('默认翻译服务不允许删除');
+      return;
+    }
+
+    const { removeProvider } = useConfigStore.getState();
+    removeProvider(providerId);
+
+    // 如果删除的是当前选中的翻译服务，则切换到谷歌翻译
+    if (translation.translationService === providerId) {
+      updateTranslation({ translationService: 'google' });
+    }
+
+    // 如果删除的是当前悬停翻译服务，则切换到谷歌翻译
+    if (translation.hoverTranslationService === providerId) {
+      updateTranslation({ hoverTranslationService: 'google' });
+    }
+
+    messageApi.success('翻译服务已删除');
+  };
+
+  // 设置翻译服务
+  const handleSetTranslationService = (providerId: string) => {
+    updateTranslation({ translationService: providerId });
+    messageApi.success('已设置翻译服务');
+  };
+
+  // 添加翻译服务提供商
+  const handleAddTranslationProvider = () => {
+    addProviderForm.validateFields().then(values => {
+      const { addProvider } = useConfigStore.getState();
+      const newProviderId = 'translation-' + Date.now().toString();
+
+      addProvider({
+        id: newProviderId,
+        name: values.name,
+        apiKey: values.apiKey || '',
+        baseUrl: values.baseUrl || '',
+        models: []
+      });
+
+      messageApi.success('翻译服务提供商已添加');
+      setAddProviderModalVisible(false);
+      addProviderForm.resetFields();
+    });
+  };
+
+  // 保存翻译提供商设置
+  const saveTranslationProviderSettings = () => {
+    translationProviderForm.validateFields().then(values => {
+      if (currentProvider) {
+        // 这里使用configStore中的updateProvider方法更新提供商信息
+        const { updateProvider } = useConfigStore.getState();
+        updateProvider(currentProvider.id, {
+          apiKey: values.apiKey,
+          baseUrl: values.baseUrl
+        });
+        messageApi.success('翻译服务提供商设置已保存');
+        setTranslationProviderModal(false);
+      }
+    });
+  };
+
+  // 渲染提供商图标
+  const renderProviderLogo = (providerName: string) => {
+    // 显示provider名称的第一个字母作为logo
+    return (
+      <div
+        style={{
+          width: 24,
+          height: 24,
+          backgroundColor: '#1890ff',
+          color: 'white',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 12,
+        }}
+      >
+        {providerName.charAt(0).toUpperCase()}
+      </div>
+    );
+  };
+
   return (
     <>
       {contextHolder}
@@ -124,16 +335,56 @@ const TranslationSettings: React.FC = () => {
           </TitleWithIcon>
 
           <StyledCard>
-            <Flex justify="space-between" align="center">
-              <Label>翻译服务</Label>
-              <Form.Item name="translationService" noStyle>
-                <Select style={{ width: 200 }}>
-                  <Select.Option value="google">谷歌翻译</Select.Option>
-                  <Select.Option value="glm">智谱GLM翻译</Select.Option>
-                  <Select.Option value="default">默认AI服务</Select.Option>
-                </Select>
-              </Form.Item>
-            </Flex>
+            <Label>翻译服务</Label>
+            <Paragraph type="secondary" style={{ marginBottom: 16 }}>
+              选择用于翻译的服务提供商，不同的提供商可能有不同的翻译质量和速度
+            </Paragraph>
+
+            {providers.length > 0 ? (
+              <Row gutter={[16, 16]}>
+                {providers.map((provider) => (
+                  <Col span={12} key={provider.id}>
+                    <ProviderItem
+                      className={translation.translationService === provider.id ? 'selected' : ''}
+                      onClick={() => handleSetTranslationService(provider.id)}
+                    >
+                      <ProviderInfo>
+                        <ProviderLogo>
+                          {renderProviderLogo(provider.name)}
+                        </ProviderLogo>
+                        <ProviderName>{provider.name}</ProviderName>
+                      </ProviderInfo>
+                      <ProviderActions>
+                        <Button
+                          type="primary"
+                          size="small"
+                          onClick={(e) => handleTranslationProviderConfig(e, provider.id)}
+                        >
+                          设置
+                        </Button>
+                        <Button
+                          danger
+                          type="text"
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => handleDeleteTranslationProvider(e, provider.id)}
+                          disabled={provider.id === 'google' || provider.id === 'glm'}
+                        />
+                      </ProviderActions>
+                    </ProviderItem>
+                  </Col>
+                ))}
+              </Row>
+            ) : (
+              <Empty description="暂无服务提供商" />
+            )}
+
+            <AddProviderButton
+              icon={<PlusOutlined />}
+              onClick={() => setAddProviderModalVisible(true)}
+            >
+              添加翻译服务提供商
+            </AddProviderButton>
 
             <StyledDivider />
 
@@ -279,8 +530,9 @@ const TranslationSettings: React.FC = () => {
               <Label>悬停翻译服务</Label>
               <Form.Item name="hoverTranslationService" noStyle>
                 <Select style={{ width: 200 }}>
-                  <Select.Option value="google">谷歌翻译</Select.Option>
-                  <Select.Option value="glm">智谱GLM翻译</Select.Option>
+                  {providers.map(provider => (
+                    <Select.Option key={provider.id} value={provider.id}>{provider.name}</Select.Option>
+                  ))}
                   <Select.Option value="default">默认AI服务</Select.Option>
                 </Select>
               </Form.Item>
@@ -342,6 +594,109 @@ const TranslationSettings: React.FC = () => {
           </StyledCard>
         </StyledSection>
       </Form>
+
+      {/* 翻译服务提供商配置弹窗 */}
+      <Modal
+        title={currentProvider?.name + " 翻译配置"}
+        open={translationProviderModal}
+        onCancel={() => setTranslationProviderModal(false)}
+        footer={null}
+        width={500}
+      >
+        <Form form={translationProviderForm} layout="vertical">
+          <Form.Item name="id" hidden>
+            <Input />
+          </Form.Item>
+
+          <Form.Item name="name" hidden>
+            <Input />
+          </Form.Item>
+
+          <Form.Item
+            name="apiKey"
+            label="API key"
+            rules={[{ required: true, message: '请输入API密钥' }]}
+          >
+            <Input.Password
+              placeholder="请输入您的API密钥"
+              iconRender={(visible) =>
+                visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+              }
+            />
+          </Form.Item>
+
+          <Form.Item name="baseUrl" label="API代理URL（可选）">
+            <Input placeholder="https://api.provider.com/v1" />
+          </Form.Item>
+
+          <div
+            style={{
+              marginTop: 24,
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 8,
+            }}
+          >
+            <Button onClick={() => setTranslationProviderModal(false)}>
+              取消
+            </Button>
+            <Button type="primary" onClick={saveTranslationProviderSettings}>
+              保存
+            </Button>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* 添加翻译服务提供商弹窗 */}
+      <Modal
+        title="添加翻译服务提供商"
+        open={addProviderModalVisible}
+        onCancel={() => setAddProviderModalVisible(false)}
+        footer={null}
+        width={500}
+      >
+        <Form form={addProviderForm} layout="vertical">
+          <Form.Item
+            name="name"
+            label="翻译服务名称"
+            rules={[{ required: true, message: '请输入翻译服务名称' }]}
+          >
+            <Input placeholder="例如: 自定义翻译服务" />
+          </Form.Item>
+
+          <Form.Item
+            name="apiKey"
+            label="API key"
+          >
+            <Input.Password
+              placeholder="请输入您的API密钥"
+              iconRender={(visible) =>
+                visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+              }
+            />
+          </Form.Item>
+
+          <Form.Item name="baseUrl" label="API代理URL">
+            <Input placeholder="https://api.example.com/v1" />
+          </Form.Item>
+
+          <div
+            style={{
+              marginTop: 24,
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 8,
+            }}
+          >
+            <Button onClick={() => setAddProviderModalVisible(false)}>
+              取消
+            </Button>
+            <Button type="primary" onClick={handleAddTranslationProvider}>
+              添加
+            </Button>
+          </div>
+        </Form>
+      </Modal>
     </>
   );
 };

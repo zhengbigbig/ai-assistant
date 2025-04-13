@@ -32,14 +32,14 @@ export interface AppearanceSettings {
 export interface TranslationSettings {
   targetLanguage: string;
   displayMode: 'dual' | 'replace';
-  translationService: 'google' | 'glm' | 'default';
+  translationService: string;
   displayStyle: 'underline' | 'background' | 'border';
   forbiddenWebsites: string[];
   enableVideoSubtitleTranslation: boolean;
   enableInputTranslation: boolean;
   enableHoverTranslation: boolean;
   hoverHotkey: string;
-  hoverTranslationService: 'google' | 'glm' | 'default';
+  hoverTranslationService: string;
 }
 
 // 朗读设置接口

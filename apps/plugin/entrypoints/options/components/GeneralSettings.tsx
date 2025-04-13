@@ -573,7 +573,7 @@ const GeneralSettings: React.FC = () => {
           <StyledCard>
             <Label>服务提供商</Label>
             <div>
-              <Paragraph type="secondary" style={{ marginBottom: 16 }}>
+              <Paragraph type="secondary" style={{ marginBottom: 16, marginLeft: 10 }}>
                 您的AI密钥会本地存储在您的浏览器中，绝不会发送到其他地方。注意：由于技术原因，某些功能仅限于Sider模式。
               </Paragraph>
 
