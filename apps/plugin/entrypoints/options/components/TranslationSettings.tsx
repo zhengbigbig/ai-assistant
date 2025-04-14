@@ -1,13 +1,10 @@
 import {
-  ApiOutlined,
   ControlOutlined,
   DeleteOutlined,
-  EditOutlined,
   EyeInvisibleOutlined,
   EyeTwoTone,
-  GlobalOutlined,
   PlusOutlined,
-  TranslationOutlined,
+  TranslationOutlined
 } from '@ant-design/icons';
 import {
   Button,
@@ -18,19 +15,17 @@ import {
   Input,
   message,
   Modal,
-  Popconfirm,
-  Radio,
   Row,
   Select,
   Space,
   Switch,
   Tag,
-  Typography,
+  Typography
 } from 'antd';
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { useConfigStore, useProviders, useSelectedProvider, useTranslation } from '../../stores/configStore';
 import type { ProviderType, TranslationSettings } from '../../stores/configStore';
+import { useConfigStore, useProviders, useSelectedProvider, useTranslation } from '../../stores/configStore';
 import {
   Label,
   StyledCard,

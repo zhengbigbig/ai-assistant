@@ -42,6 +42,23 @@ export interface TranslationSettings {
   hoverTranslationService: string;
 }
 
+// 网页助手设置接口
+export interface WebHelperSettings {
+  enableForSearch: boolean;
+  searchAnswerDisplay: 'always' | 'whenHovered' | 'whenClicked';
+  enableForYoutube: boolean;
+  enableForLinks: boolean;
+  enableForImages: boolean;
+  enableForCode: boolean;
+  enableInputCompletion: boolean;
+  allowedWebsites: string[];
+  enableForArticle?: boolean;
+  articleAnswerDisplay?: 'always' | 'whenClicked';
+  showSidePanel?: boolean;
+  sidePanelPosition?: 'left' | 'right';
+  chatLanguage?: 'zh-CN' | 'zh-TW' | 'en-US';
+}
+
 // 朗读设置接口
 export interface VoiceSettings {
   voiceType: string;
@@ -113,6 +130,9 @@ export interface ConfigState {
   // 翻译设置
   translation: TranslationSettings;
 
+  // 网页助手设置
+  webHelper: WebHelperSettings;
+
   // 账户信息
   account: AccountInfo | null;
 
@@ -149,6 +169,9 @@ export interface ConfigState {
 
   // 翻译设置操作
   updateTranslation: (settings: Partial<TranslationSettings>) => void;
+
+  // 网页助手设置操作
+  updateWebHelper: (settings: Partial<WebHelperSettings>) => void;
 
   // 账户操作
   updateAccount: (account: Partial<AccountInfo>) => void;
@@ -258,6 +281,23 @@ export const useConfigStore = create<ConfigState>()(
         enableHoverTranslation: true,
         hoverHotkey: 'option',
         hoverTranslationService: 'google'
+      },
+
+      // 网页助手设置默认值
+      webHelper: {
+        enableForSearch: true,
+        searchAnswerDisplay: 'always',
+        enableForYoutube: true,
+        enableForLinks: true,
+        enableForImages: true,
+        enableForCode: true,
+        enableInputCompletion: true,
+        allowedWebsites: ['docs.google.com'],
+        enableForArticle: false,
+        articleAnswerDisplay: 'always',
+        showSidePanel: true,
+        sidePanelPosition: 'right',
+        chatLanguage: 'zh-CN'
       },
 
       // 账户信息 - 默认为null
@@ -438,6 +478,16 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
+      // 网页助手设置操作
+      updateWebHelper: (settings: Partial<WebHelperSettings>) => set(
+        produce((state: ConfigState) => {
+          state.webHelper = {
+            ...state.webHelper,
+            ...settings
+          };
+        })
+      ),
+
       // 账户操作
       updateAccount: (account: Partial<AccountInfo>) => set(
         produce((state: ConfigState) => {
@@ -471,6 +521,7 @@ export const useTextSelection = () => useConfigStore(state => state.textSelectio
 export const useAccount = () => useConfigStore(state => state.account);
 export const usePromptWords = () => useConfigStore(state => state.promptWords);
 export const useTranslation = () => useConfigStore(state => state.translation);
+export const useWebHelper = () => useConfigStore(state => state.webHelper);
 
 // 根据当前选择的提供商获取可用模型
 export const useAvailableModels = () => {
