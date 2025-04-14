@@ -491,8 +491,8 @@ const TranslationSettings: React.FC = () => {
                 </Text>
               </Label>
               <Form.Item name="enableHoverTranslation" noStyle valuePropName="checked">
-                <Switch />
-              </Form.Item>
+          <Switch />
+        </Form.Item>
             </Flex>
 
             <StyledDivider />
@@ -529,8 +529,8 @@ const TranslationSettings: React.FC = () => {
                     <Select.Option key={provider.id} value={provider.id}>{provider.name}</Select.Option>
                   ))}
                   <Select.Option value="default">默认AI服务</Select.Option>
-                </Select>
-              </Form.Item>
+          </Select>
+        </Form.Item>
             </Flex>
           </StyledCard>
         </StyledSection>
@@ -605,9 +605,9 @@ const TranslationSettings: React.FC = () => {
 
           <Form.Item name="name" hidden>
             <Input />
-          </Form.Item>
+        </Form.Item>
 
-          <Form.Item
+        <Form.Item
             name="apiKey"
             label="API key"
             rules={[{ required: true, message: '请输入API密钥' }]}
@@ -657,9 +657,9 @@ const TranslationSettings: React.FC = () => {
             rules={[{ required: true, message: '请输入翻译服务名称' }]}
           >
             <Input placeholder="例如: 自定义翻译服务" />
-          </Form.Item>
+        </Form.Item>
 
-          <Form.Item
+        <Form.Item
             name="apiKey"
             label="API key"
           >
@@ -673,7 +673,7 @@ const TranslationSettings: React.FC = () => {
 
           <Form.Item name="baseUrl" label="API代理URL">
             <Input placeholder="https://api.example.com/v1" />
-          </Form.Item>
+        </Form.Item>
 
           <div
             style={{
@@ -690,7 +690,7 @@ const TranslationSettings: React.FC = () => {
               添加
             </Button>
           </div>
-        </Form>
+      </Form>
       </Modal>
     </>
   );

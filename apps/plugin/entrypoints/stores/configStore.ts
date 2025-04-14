@@ -83,6 +83,16 @@ export interface TextSelectionSettings {
   forbiddenWebsites: string[];
 }
 
+// 键盘快捷键设置接口
+export interface KeyboardShortcutsSettings {
+  enableKeyboardShortcuts: boolean;
+  shortcutSendMessage: string; // 发送消息
+  shortcutOpenSidebar: string; // 打开侧边栏
+  shortcutStartNewChat: string; // 开始新聊天
+  shortcutQuickQuery: string; // 打开快速查询
+  shortcutTranslatePage: string; // 翻译页面
+}
+
 // 提示词设置接口
 export interface PromptWordItem {
   id: string;
@@ -124,6 +134,9 @@ export interface ConfigState {
   // 划词功能设置
   textSelection: TextSelectionSettings;
 
+  // 键盘快捷键设置
+  keyboardShortcuts: KeyboardShortcutsSettings;
+
   // 提示词设置
   promptWords: PromptWordsSettings;
 
@@ -159,6 +172,9 @@ export interface ConfigState {
 
   // 划词功能设置操作
   updateTextSelection: (settings: Partial<TextSelectionSettings>) => void;
+
+  // 键盘快捷键设置操作
+  updateKeyboardShortcuts: (settings: Partial<KeyboardShortcutsSettings>) => void;
 
   // 提示词操作
   updatePromptWords: (settings: Partial<PromptWordsSettings>) => void;
@@ -250,6 +266,16 @@ export const useConfigStore = create<ConfigState>()(
         hotkey: 'option',
         triggerCondition: 'selectText',
         forbiddenWebsites: ['google.com', 'bing.com', 'baidu.com'],
+      },
+
+      // 键盘快捷键设置默认值
+      keyboardShortcuts: {
+        enableKeyboardShortcuts: true,
+        shortcutSendMessage: 'Enter',
+        shortcutOpenSidebar: 'Ctrl+S',
+        shortcutStartNewChat: '⌘+⇧+O',
+        shortcutQuickQuery: '⌘+J',
+        shortcutTranslatePage: '⌥+A',
       },
 
       // 提示词设置默认值
@@ -419,6 +445,16 @@ export const useConfigStore = create<ConfigState>()(
         })
       ),
 
+      // 键盘快捷键设置操作
+      updateKeyboardShortcuts: (settings: Partial<KeyboardShortcutsSettings>) => set(
+        produce((state: ConfigState) => {
+          state.keyboardShortcuts = {
+            ...state.keyboardShortcuts,
+            ...settings
+          };
+        })
+      ),
+
       // 提示词操作
       updatePromptWords: (settings: Partial<PromptWordsSettings>) => set(
         produce((state: ConfigState) => {
@@ -522,6 +558,7 @@ export const useAccount = () => useConfigStore(state => state.account);
 export const usePromptWords = () => useConfigStore(state => state.promptWords);
 export const useTranslation = () => useConfigStore(state => state.translation);
 export const useWebHelper = () => useConfigStore(state => state.webHelper);
+export const useKeyboardShortcuts = () => useConfigStore(state => state.keyboardShortcuts);
 
 // 根据当前选择的提供商获取可用模型
 export const useAvailableModels = () => {
