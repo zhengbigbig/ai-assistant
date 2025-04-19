@@ -3,7 +3,10 @@
  * 处理插件安装、事件监听和侧边栏交互
  */
 import { defineBackground } from 'wxt/sandbox';
+import { TARGET_LANGUAGE_OPTIONS } from '../constants/config';
+import { useConfigStore } from '../stores/configStore';
 import { resizeWindow } from './windowResizer';
+import { CONFIG_STORAGE_KEY } from '../constants/key';
 
 export default defineBackground(() => {
   console.log('AI 助手后台服务已启动');
@@ -12,6 +15,16 @@ export default defineBackground(() => {
   function setupContextMenus() {
     // 清除所有现有的上下文菜单，以避免重复
     chrome.contextMenus.removeAll(() => {
+      // 获取配置信息
+      const configStore = useConfigStore.getState();
+      const translation = configStore.translation;
+      const shortcutTranslatePage =
+        configStore.keyboardShortcuts.shortcutTranslatePage;
+      // 获取目标语言中文名
+      const targetLanguage = TARGET_LANGUAGE_OPTIONS.find(
+        (option) => option.value === translation.targetLanguage
+      )?.label;
+
       // 创建"发送选定文本给 AI 助手"菜单项
       chrome.contextMenus.create({
         id: 'sendToAI',
@@ -33,6 +46,13 @@ export default defineBackground(() => {
         contexts: ['page'], // 在任何页面上显示
       });
 
+      // 创建"翻译为目标语言"菜单项
+      chrome.contextMenus.create({
+        id: 'translateText',
+        title: `翻译为${targetLanguage} [${shortcutTranslatePage}]`,
+        contexts: ['page'],
+      });
+
       // 添加"打开设置"菜单项
       chrome.contextMenus.create({
         id: 'openOptions',
@@ -48,6 +68,9 @@ export default defineBackground(() => {
       if (info.menuItemId === 'sendToAI') {
         // 将选中的文本发送到侧边栏
         handleSelectedText(info.selectionText || '', tab.id);
+      } else if (info.menuItemId === 'translateText') {
+        // 处理翻译文本
+        handleTranslateText(info.selectionText || '', tab.id);
       } else if (info.menuItemId === 'captureScreenshot') {
         // 截取页面截图
         captureVisibleTab(tab.id);
@@ -64,12 +87,36 @@ export default defineBackground(() => {
   // 处理选中的文本
   function handleSelectedText(text: string, tabId: number) {
     // 打开侧边栏
-    chrome.sidePanel.open({ tabId }).catch(err => {
+    chrome.sidePanel.open({ tabId }).catch((err) => {
       console.error('Failed to open side panel:', err);
     });
 
     // 发送选中的文本到侧边栏
     chrome.runtime.sendMessage({ action: 'addSelectedText', text });
+  }
+
+  // 处理翻译文本
+  function handleTranslateText(text: string, tabId: number) {
+    if (!text) return;
+
+    // 获取配置信息
+    const configStore = useConfigStore.getState();
+    const translation = configStore.translation;
+    const targetLanguage = translation.targetLanguage || 'zh-CN';
+
+    // 打开侧边栏
+    chrome.sidePanel.open({ tabId }).catch((err) => {
+      console.error('Failed to open side panel:', err);
+    });
+
+    // 翻译前缀 + 文本
+    const messageWithPrefix = `翻译为${targetLanguage}: ${text}`;
+
+    // 发送消息到侧边栏
+    chrome.runtime.sendMessage({
+      action: 'syncTextToInput',
+      text: messageWithPrefix,
+    });
   }
 
   // 截取可见页面的截图
@@ -88,22 +135,26 @@ export default defineBackground(() => {
           console.log('Screenshot captured successfully');
 
           // 打开侧边栏
-          chrome.sidePanel.open({ tabId }).catch(err => {
+          chrome.sidePanel.open({ tabId }).catch((err) => {
             console.error('Failed to open side panel:', err);
           });
 
           // 使用 OCR API 获取截图中的文本（这里仅示例，实际需要集成 OCR 服务）
-          const exampleText = '这是一张截图，包含了页面的可见内容。实际应用中应整合 OCR 服务提取文本。';
+          const exampleText =
+            '这是一张截图，包含了页面的可见内容。实际应用中应整合 OCR 服务提取文本。';
 
           // 发送截图和提取的文本到侧边栏
-          chrome.runtime.sendMessage({
-            action: 'addScreenshot',
-            imageUrl: dataUrl,
-            text: exampleText,
-            addToInput: false // 默认不添加到输入框
-          }, (response) => {
-            console.log('addScreenshot response:', response);
-          });
+          chrome.runtime.sendMessage(
+            {
+              action: 'addScreenshot',
+              imageUrl: dataUrl,
+              text: exampleText,
+              addToInput: false, // 默认不添加到输入框
+            },
+            (response) => {
+              console.log('addScreenshot response:', response);
+            }
+          );
         }
       );
     } catch (error) {
@@ -117,42 +168,59 @@ export default defineBackground(() => {
 
     try {
       // 向内容脚本发送消息，启动区域截图模式
-      chrome.tabs.sendMessage(tabId, { action: 'startAreaScreenshot' }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('Error sending message to content script:', chrome.runtime.lastError);
+      chrome.tabs.sendMessage(
+        tabId,
+        { action: 'startAreaScreenshot' },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              'Error sending message to content script:',
+              chrome.runtime.lastError
+            );
 
-          // 尝试注入内容脚本如果它还没有加载
-          chrome.scripting.executeScript({
-            target: { tabId },
-            files: ['entrypoints/content.js']
-          }).then(() => {
-            console.log('Content script injected, retrying startAreaScreenshot');
-            // 重试发送消息
-            setTimeout(() => {
-              chrome.tabs.sendMessage(tabId, { action: 'startAreaScreenshot' });
-            }, 500);
-          }).catch(err => {
-            console.error('Failed to inject content script:', err);
-          });
+            // 尝试注入内容脚本如果它还没有加载
+            chrome.scripting
+              .executeScript({
+                target: { tabId },
+                files: ['entrypoints/content.js'],
+              })
+              .then(() => {
+                console.log(
+                  'Content script injected, retrying startAreaScreenshot'
+                );
+                // 重试发送消息
+                setTimeout(() => {
+                  chrome.tabs.sendMessage(tabId, {
+                    action: 'startAreaScreenshot',
+                  });
+                }, 500);
+              })
+              .catch((err) => {
+                console.error('Failed to inject content script:', err);
+              });
 
-          return;
+            return;
+          }
+
+          console.log(
+            'Area screenshot started, content script response:',
+            response
+          );
         }
-
-        console.log('Area screenshot started, content script response:', response);
-      });
+      );
     } catch (error) {
       console.error('Error during startAreaScreenshot:', error);
     }
   }
 
-  // 处理命令快捷键
+  // 监听命令快捷键
   chrome.commands.onCommand.addListener((command) => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs[0]?.id) return;
 
       if (command === 'toggle-sidepanel') {
         // 打开/关闭侧边栏
-        chrome.sidePanel.open({ tabId: tabs[0].id }).catch(err => {
+        chrome.sidePanel.open({ tabId: tabs[0].id }).catch((err) => {
           console.error('Failed to open side panel:', err);
         });
       } else if (command === 'capture-screenshot') {
@@ -167,7 +235,7 @@ export default defineBackground(() => {
     if (!tab.id) return;
 
     // 切换侧边栏显示状态
-    chrome.sidePanel.open({ tabId: tab.id }).catch(err => {
+    chrome.sidePanel.open({ tabId: tab.id }).catch((err) => {
       console.error('Failed to open side panel:', err);
     });
   });
@@ -202,7 +270,10 @@ export default defineBackground(() => {
           { format: 'png', quality: 100 },
           (dataUrl) => {
             if (chrome.runtime.lastError) {
-              console.error('Screenshot error during scroll capture:', chrome.runtime.lastError);
+              console.error(
+                'Screenshot error during scroll capture:',
+                chrome.runtime.lastError
+              );
               sendResponse({ error: chrome.runtime.lastError.message });
               return;
             }
@@ -220,7 +291,7 @@ export default defineBackground(() => {
     } else if (message.action === 'openSidePanel') {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]?.id) {
-          chrome.sidePanel.open({ tabId: tabs[0].id }).catch(err => {
+          chrome.sidePanel.open({ tabId: tabs[0].id }).catch((err) => {
             console.error('Failed to open side panel:', err);
           });
         }
@@ -232,16 +303,17 @@ export default defineBackground(() => {
       // 先打开侧边栏
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]?.id) {
-          chrome.sidePanel.open({ tabId: tabs[0].id })
+          chrome.sidePanel
+            .open({ tabId: tabs[0].id })
             .then(() => {
               // 同步文本到侧边栏输入框
               chrome.runtime.sendMessage({
                 action: 'syncTextToInput',
-                text: message.text
+                text: message.text,
               });
               sendResponse({ success: true });
             })
-            .catch(err => {
+            .catch((err) => {
               console.error('同步划词数据失败:', err);
               sendResponse({ error: err.message });
             });
@@ -256,17 +328,18 @@ export default defineBackground(() => {
       // 先打开侧边栏
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]?.id) {
-          chrome.sidePanel.open({ tabId: tabs[0].id })
+          chrome.sidePanel
+            .open({ tabId: tabs[0].id })
             .then(() => {
               // 发送文本到侧边栏并立即发送
               chrome.runtime.sendMessage({
                 action: 'addSelectedText',
                 text: message.text,
-                sendImmediately: true
+                sendImmediately: true,
               });
               sendResponse({ success: true });
             })
-            .catch(err => {
+            .catch((err) => {
               console.error('发送划词数据失败:', err);
               sendResponse({ error: err.message });
             });
@@ -289,7 +362,7 @@ export default defineBackground(() => {
         action: 'addScreenshot',
         imageUrl: message.imageUrl,
         text: message.text || '区域截图',
-        addToInput: message.addToInput || false // 传递addToInput参数
+        addToInput: message.addToInput || false, // 传递addToInput参数
       });
       sendResponse({ success: true });
     } else if (message.action === 'startAreaScreenshot') {
@@ -324,47 +397,37 @@ export default defineBackground(() => {
   });
 
   // 设置侧边栏默认打开位置
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(err => {
-    console.error('Failed to set side panel behavior:', err);
-  });
+  chrome.sidePanel
+    .setPanelBehavior({ openPanelOnActionClick: true })
+    .catch((err) => {
+      console.error('Failed to set side panel behavior:', err);
+    });
 
   // 插件安装或更新时初始化
   chrome.runtime.onInstalled.addListener(() => {
     // 设置上下文菜单
     setupContextMenus();
+  });
 
-    // 初始化存储，设置默认值
-    chrome.storage.sync.get(
-      [
-        'apiKey',
-        'apiEndpoint',
-        'enableContextMenu',
-        'enableScreenshot',
-        'defaultModel'
-      ],
-      (result) => {
-        const defaults: Record<string, any> = {};
+  // 监听 chrome.storage 的变化
+  chrome.storage.onChanged.addListener((changes) => {
+    const newConfig = changes[CONFIG_STORAGE_KEY]?.newValue?.state;
+    const lastConfig = changes[CONFIG_STORAGE_KEY]?.oldValue?.state;
 
-        if (result.enableContextMenu === undefined) {
-          defaults.enableContextMenu = true;
-        }
+    const newTargetLanguage = newConfig?.translation?.targetLanguage;
+    const newShortcutTranslatePage = newConfig?.keyboardShortcuts?.shortcutTranslatePage;
+    const lastTargetLanguage = lastConfig?.translation?.targetLanguage;
+    const lastShortcutTranslatePage = lastConfig?.keyboardShortcuts?.shortcutTranslatePage;
 
-        if (result.enableScreenshot === undefined) {
-          defaults.enableScreenshot = true;
-        }
+    if(newTargetLanguage !== lastTargetLanguage || newShortcutTranslatePage !== lastShortcutTranslatePage){
+      // 更新右键菜单
+      const targetLanguageLabel = TARGET_LANGUAGE_OPTIONS.find(
+        (option) => option.value === newTargetLanguage
+      )?.label;
 
-        if (!result.apiEndpoint) {
-          defaults.apiEndpoint = 'https://api.openai.com/v1';
-        }
-
-        if (!result.defaultModel) {
-          defaults.defaultModel = 'gpt-4';
-        }
-
-        if (Object.keys(defaults).length > 0) {
-          chrome.storage.sync.set(defaults);
-        }
-      }
-    );
+      chrome.contextMenus.update('translateText', {
+        title: `翻译为${targetLanguageLabel} [${newShortcutTranslatePage}]`,
+      });
+    }
   });
 });

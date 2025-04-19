@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist, PersistOptions } from 'zustand/middleware';
 import { produce } from 'immer';
 import syncStorageAdapter from './storage';
+import { TargetLanguage, DisplayMode, DisplayStyle, TranslationHotkey } from '../constants/config';
+import { CONFIG_STORAGE_KEY } from '../constants/key';
 
 // 定义模型类型接口
 export interface ModelType {
@@ -297,15 +299,15 @@ export const useConfigStore = create<ConfigState>()(
 
       // 翻译设置默认值
       translation: {
-        targetLanguage: 'zh-CN',
-        displayMode: 'dual',
+        targetLanguage: TargetLanguage.ZH_CN,
+        displayMode: DisplayMode.DUAL,
         translationService: 'google',
-        displayStyle: 'underline',
+        displayStyle: DisplayStyle.UNDERLINE,
         forbiddenWebsites: [],
         enableVideoSubtitleTranslation: true,
         enableInputTranslation: false,
         enableHoverTranslation: true,
-        hoverHotkey: 'option',
+        hoverHotkey: TranslationHotkey.OPTION,
         hoverTranslationService: 'google'
       },
 
@@ -541,7 +543,7 @@ export const useConfigStore = create<ConfigState>()(
       ),
     }),
     {
-      name: 'ai-assistant-config',
+      name: CONFIG_STORAGE_KEY,
       storage: syncStorageAdapter,
     }
   )

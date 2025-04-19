@@ -34,6 +34,7 @@ import {
   StyledTitle,
   TitleWithIcon,
 } from './Wrapper';
+import { DISPLAY_MODE_OPTIONS, DISPLAY_STYLE_OPTIONS, TARGET_LANGUAGE_OPTIONS, TRANSLATION_HOTKEY_OPTIONS } from '../../constants/config';
 
 const { Text, Paragraph } = Typography;
 
@@ -386,18 +387,7 @@ const TranslationSettings: React.FC = () => {
             <Flex justify="space-between" align="center">
               <Label>目标语言</Label>
               <Form.Item name="targetLanguage" noStyle>
-                <Select style={{ width: 200 }}>
-                  <Select.Option value="zh-CN">简体中文</Select.Option>
-                  <Select.Option value="en-US">英语（美国）</Select.Option>
-                  <Select.Option value="ja-JP">日语</Select.Option>
-                  <Select.Option value="ko-KR">韩语</Select.Option>
-                  <Select.Option value="fr-FR">法语</Select.Option>
-                  <Select.Option value="de-DE">德语</Select.Option>
-                  <Select.Option value="ru-RU">俄语</Select.Option>
-                  <Select.Option value="es-ES">西班牙语</Select.Option>
-                  <Select.Option value="it-IT">意大利语</Select.Option>
-                  <Select.Option value="pt-PT">葡萄牙语</Select.Option>
-                </Select>
+                <Select style={{ width: 200 }} options={TARGET_LANGUAGE_OPTIONS} />
               </Form.Item>
             </Flex>
 
@@ -406,10 +396,7 @@ const TranslationSettings: React.FC = () => {
             <Flex justify="space-between" align="center">
               <Label>显示模式</Label>
               <Form.Item name="displayMode" noStyle>
-                <Select style={{ width: 200 }}>
-                  <Select.Option value="dual">双语对照</Select.Option>
-                  <Select.Option value="replace">替换原文</Select.Option>
-                </Select>
+                <Select style={{ width: 200 }} options={DISPLAY_MODE_OPTIONS} />
               </Form.Item>
             </Flex>
 
@@ -418,11 +405,7 @@ const TranslationSettings: React.FC = () => {
             <Flex justify="space-between" align="center">
               <Label>显示风格</Label>
               <Form.Item name="displayStyle" noStyle>
-                <Select style={{ width: 200 }}>
-                  <Select.Option value="underline">虚线下划线</Select.Option>
-                  <Select.Option value="background">背景色</Select.Option>
-                  <Select.Option value="border">虚线边框</Select.Option>
-                </Select>
+                <Select style={{ width: 200 }} options={DISPLAY_STYLE_OPTIONS} />
               </Form.Item>
             </Flex>
           </StyledCard>
@@ -508,11 +491,7 @@ const TranslationSettings: React.FC = () => {
                     // 阻止默认行为
                     e.preventDefault();
                   }}
-                  options={[
-                    { label: '⌥ Option', value: 'option' },
-                    { label: '⌘ Command', value: 'command' },
-                    { label: '⇧ Shift', value: 'shift' },
-                  ]}
+                  options={TRANSLATION_HOTKEY_OPTIONS}
                   style={{ width: 150 }}
                 />
               </Form.Item>
