@@ -70,7 +70,7 @@ export default defineBackground(() => {
         handleSelectedText(info.selectionText || '', tab.id);
       } else if (info.menuItemId === 'translateText') {
         // 处理翻译文本
-        handleTranslateText(info.selectionText || '', tab.id);
+        handleTranslateText(tab.id);
       } else if (info.menuItemId === 'captureScreenshot') {
         // 截取页面截图
         captureVisibleTab(tab.id);
@@ -96,26 +96,28 @@ export default defineBackground(() => {
   }
 
   // 处理翻译文本
-  function handleTranslateText(text: string, tabId: number) {
-    if (!text) return;
+  function handleTranslateText(tabId: number) {
+    if (!tabId) return;
 
-    // 获取配置信息
-    const configStore = useConfigStore.getState();
-    const translation = configStore.translation;
-    const targetLanguage = translation.targetLanguage || 'zh-CN';
+    // 发送消息到内容脚本，触发页面翻译
+    chrome.tabs.sendMessage(tabId, { action: 'translateText' }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error(
+          'Error sending translateText message:',
+          chrome.runtime.lastError
+        );
 
-    // 打开侧边栏
-    chrome.sidePanel.open({ tabId }).catch((err) => {
-      console.error('Failed to open side panel:', err);
-    });
+        // 重试发送消息
+        setTimeout(() => {
+          chrome.tabs.sendMessage(tabId, {
+            action: 'translateText',
+          });
+        }, 500);
 
-    // 翻译前缀 + 文本
-    const messageWithPrefix = `翻译为${targetLanguage}: ${text}`;
+        return;
+      }
 
-    // 发送消息到侧边栏
-    chrome.runtime.sendMessage({
-      action: 'syncTextToInput',
-      text: messageWithPrefix,
+      console.log('Page translation started, response:', response);
     });
   }
 
@@ -415,11 +417,16 @@ export default defineBackground(() => {
     const lastConfig = changes[CONFIG_STORAGE_KEY]?.oldValue?.state;
 
     const newTargetLanguage = newConfig?.translation?.targetLanguage;
-    const newShortcutTranslatePage = newConfig?.keyboardShortcuts?.shortcutTranslatePage;
+    const newShortcutTranslatePage =
+      newConfig?.keyboardShortcuts?.shortcutTranslatePage;
     const lastTargetLanguage = lastConfig?.translation?.targetLanguage;
-    const lastShortcutTranslatePage = lastConfig?.keyboardShortcuts?.shortcutTranslatePage;
+    const lastShortcutTranslatePage =
+      lastConfig?.keyboardShortcuts?.shortcutTranslatePage;
 
-    if(newTargetLanguage !== lastTargetLanguage || newShortcutTranslatePage !== lastShortcutTranslatePage){
+    if (
+      newTargetLanguage !== lastTargetLanguage ||
+      newShortcutTranslatePage !== lastShortcutTranslatePage
+    ) {
       // 更新右键菜单
       const targetLanguageLabel = TARGET_LANGUAGE_OPTIONS.find(
         (option) => option.value === newTargetLanguage
