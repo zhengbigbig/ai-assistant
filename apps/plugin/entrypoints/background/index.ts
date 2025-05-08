@@ -7,6 +7,8 @@ import { TARGET_LANGUAGE_OPTIONS } from '../constants/config';
 import { useConfigStore } from '../stores/configStore';
 import { resizeWindow } from './windowResizer';
 import { CONFIG_STORAGE_KEY } from '../constants/key';
+import { translationService } from './translation';
+import { translationCache } from './translation/cache';
 
 export default defineBackground(() => {
   console.log('AI 助手后台服务已启动');
@@ -48,7 +50,7 @@ export default defineBackground(() => {
 
       // 创建"翻译为目标语言"菜单项
       chrome.contextMenus.create({
-        id: 'translateText',
+        id: 'translatePage',
         title: `翻译为${targetLanguage} [${shortcutTranslatePage}]`,
         contexts: ['page'],
       });
@@ -68,9 +70,9 @@ export default defineBackground(() => {
       if (info.menuItemId === 'sendToAI') {
         // 将选中的文本发送到侧边栏
         handleSelectedText(info.selectionText || '', tab.id);
-      } else if (info.menuItemId === 'translateText') {
-        // 处理翻译文本
-        handleTranslateText(tab.id);
+      } else if (info.menuItemId === 'translatePage') {
+        // 翻译页面
+        handleTranslatePage(tab.id);
       } else if (info.menuItemId === 'captureScreenshot') {
         // 截取页面截图
         captureVisibleTab(tab.id);
@@ -96,21 +98,21 @@ export default defineBackground(() => {
   }
 
   // 处理翻译文本
-  function handleTranslateText(tabId: number) {
+  function handleTranslatePage(tabId: number) {
     if (!tabId) return;
 
     // 发送消息到内容脚本，触发页面翻译
-    chrome.tabs.sendMessage(tabId, { action: 'translateText' }, (response) => {
+    chrome.tabs.sendMessage(tabId, { action: 'translatePage' }, (response) => {
       if (chrome.runtime.lastError) {
         console.error(
-          'Error sending translateText message:',
+          'Error sending translatePage message:',
           chrome.runtime.lastError
         );
 
         // 重试发送消息
         setTimeout(() => {
           chrome.tabs.sendMessage(tabId, {
-            action: 'translateText',
+            action: 'translatePage',
           });
         }, 500);
 
@@ -244,158 +246,155 @@ export default defineBackground(() => {
 
   // 监听来自内容脚本或弹出窗口的消息
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log('Background received message:', message);
+    console.log('Background script received message:', message);
 
-    if (message.action === 'captureScreenshot') {
-      console.log('Handling captureScreenshot action');
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-          console.log('Capturing screenshot for tab:', tabs[0].id);
-          captureVisibleTab(tabs[0].id);
-        } else {
-          console.error('No active tab found');
-        }
-      });
-      sendResponse({ success: true });
-    } else if (message.action === 'captureVisibleTabForScroll') {
-      // 处理滚动截图过程中对可见区域的捕获请求
-      console.log('Handling captureVisibleTabForScroll action');
-
-      if (!sender.tab?.id) {
-        console.error('Cannot capture tab: no tab ID');
-        sendResponse({ error: '无法获取标签页ID' });
-        return true;
-      }
-
-      try {
-        chrome.tabs.captureVisibleTab(
-          { format: 'png', quality: 100 },
-          (dataUrl) => {
-            if (chrome.runtime.lastError) {
-              console.error(
-                'Screenshot error during scroll capture:',
-                chrome.runtime.lastError
-              );
-              sendResponse({ error: chrome.runtime.lastError.message });
-              return;
-            }
-
-            console.log('Scroll screenshot captured successfully');
-            sendResponse({ dataUrl });
-          }
-        );
-      } catch (error) {
-        console.error('Error during scroll screenshot capture:', error);
-        sendResponse({ error: String(error) });
-      }
-
-      return true; // 保持消息通道打开以进行异步响应
-    } else if (message.action === 'openSidePanel') {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-          chrome.sidePanel.open({ tabId: tabs[0].id }).catch((err) => {
-            console.error('Failed to open side panel:', err);
-          });
-        }
-      });
-      sendResponse({ success: true });
-    } else if (message.action === 'syncSelectedText') {
-      // 只同步文本到侧边栏输入框，不发送
-      console.log('同步划词数据到侧边栏输入框:', message.text);
-      // 先打开侧边栏
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-          chrome.sidePanel
-            .open({ tabId: tabs[0].id })
-            .then(() => {
-              // 同步文本到侧边栏输入框
-              chrome.runtime.sendMessage({
-                action: 'syncTextToInput',
-                text: message.text,
-              });
-              sendResponse({ success: true });
-            })
-            .catch((err) => {
-              console.error('同步划词数据失败:', err);
-              sendResponse({ error: err.message });
-            });
-        } else {
-          sendResponse({ error: '无法获取当前标签页' });
-        }
-      });
-      return true; // 保持消息通道打开以进行异步响应
-    } else if (message.action === 'sendSelectedText') {
-      // 发送文本到侧边栏并立即发送
-      console.log('发送划词数据到侧边栏并立即发送:', message.text);
-      // 先打开侧边栏
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-          chrome.sidePanel
-            .open({ tabId: tabs[0].id })
-            .then(() => {
-              // 发送文本到侧边栏并立即发送
-              chrome.runtime.sendMessage({
-                action: 'addSelectedText',
-                text: message.text,
-                sendImmediately: true,
-              });
-              sendResponse({ success: true });
-            })
-            .catch((err) => {
-              console.error('发送划词数据失败:', err);
-              sendResponse({ error: err.message });
-            });
-        } else {
-          sendResponse({ error: '无法获取当前标签页' });
-        }
-      });
-      return true; // 保持消息通道打开以进行异步响应
-    } else if (message.action === 'getTabId') {
-      // 返回当前标签页ID
-      if (sender.tab?.id) {
-        sendResponse({ tabId: sender.tab.id });
-      } else {
-        sendResponse({ error: '无法获取标签页ID' });
-      }
-    } else if (message.action === 'addScreenshot') {
-      console.log('Forwarding screenshot data to side panel');
-      // 转发截图数据到侧边栏
-      chrome.runtime.sendMessage({
-        action: 'addScreenshot',
-        imageUrl: message.imageUrl,
-        text: message.text || '区域截图',
-        addToInput: message.addToInput || false, // 传递addToInput参数
-      });
-      sendResponse({ success: true });
-    } else if (message.action === 'startAreaScreenshot') {
-      console.log('Handling startAreaScreenshot action');
-      // 在当前标签页启动区域截图模式
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-          console.log('Starting area screenshot for tab:', tabs[0].id);
-          startAreaScreenshot(tabs[0].id);
-        } else {
-          console.error('No active tab found');
-        }
-      });
-      sendResponse({ success: true });
-    } else if (message.action === 'resizeWindow') {
-      console.log('Handling resizeWindow action');
-
-      // 调整窗口尺寸
-      if (message.width && message.height) {
-        resizeWindow(message.width, message.height);
-        sendResponse({ success: true });
-      } else {
-        console.error('Missing width or height in resizeWindow message');
-        sendResponse({ success: false, error: '缺少宽度或高度参数' });
-      }
+    // 处理不同类型的消息
+    if (message.action === 'getActiveTab') {
+      // 获取当前活动标签页
+      handleGetActiveTab(sendResponse);
+      return true; // 异步响应
     } else if (message.action === 'openOptionsPage') {
       // 打开选项页面
-      chrome.runtime.openOptionsPage();
+      handleOpenOptionsPage(message.hash);
       sendResponse({ success: true });
+    } else if (message.action === 'captureVisibleTab') {
+      // 截取当前可见页面的截图
+      handleCaptureVisibleTab(sender.tab?.id, sendResponse);
+      return true; // 异步响应
+    } else if (message.action === 'saveScreenshotArea') {
+      // 保存用户选择的屏幕区域
+      handleSaveScreenshotArea(sender.tab?.id, message.area, sendResponse);
+      return true; // 异步响应
+    } else if (message.action === 'sendCommands') {
+      // 发送命令到目标标签页
+      handleSendCommands(message.tabId, message.commands, sendResponse);
+      return true; // 异步响应
+    } else if (message.action === 'openTab') {
+      // 打开新标签页
+      handleOpenTab(message.url, sendResponse);
+      return true; // 异步响应
+    } else if (message.action === 'resizeWindow') {
+      // 调整窗口大小
+      resizeWindow(message.width, message.height);
+      return true; // 异步响应
+    } else if (message.action === 'getCtx') {
+      // 获取上下文信息
+      const tabUrl = sender.tab?.url;
+      if (!tabUrl) {
+        sendResponse({
+          error: 'No tab URL found',
+        });
+        return;
+      }
+      const tabUrlObj = new URL(tabUrl);
+      sendResponse({
+        tabUrl,
+        tabHostName: tabUrlObj.hostname,
+        tabUrlWithoutSearch: tabUrlObj.origin + tabUrlObj.pathname,
+      });
+    } else if (message.action === 'detectLanguage') {
+      chrome.i18n.detectLanguage(message.text, function (result) {
+        if (result.languages.length > 0) {
+          sendResponse(result.languages[0].language);
+        } else {
+          sendResponse(undefined);
+        }
+      });
+      return true;
+    } else if (message.action === 'detectTabLanguage') {
+      if (!message.tabId) {
+        sendResponse('und');
+        return;
+      }
+      try {
+        chrome.tabs.detectLanguage(message.tabId, function (result) {
+          sendResponse(result);
+        });
+      } catch (error) {
+        console.error('Error during detectTabLanguage:', error);
+        sendResponse('und');
+      }
+    } else if (message.action === 'getMainFramePageLanguageState') {
+      chrome.tabs.sendMessage(
+        message.tabId,
+        { action: 'getCurrentPageLanguageState' },
+        {
+          frameId: 0,
+        },
+        (pageLanguageState) => {
+          sendResponse(pageLanguageState);
+        }
+      );
+    } else if (message.action === 'getMainFrameTabLanguage') {
+      chrome.tabs.sendMessage(
+        message.tabId,
+        { action: 'getOriginalTabLanguage' },
+        {
+          frameId: 0,
+        },
+        (tabLanguage) => {
+          sendResponse(tabLanguage);
+        }
+      );
+    } else if (message.action === 'translateHTML') {
+      const dontSaveInPersistentCache = sender.tab
+        ? sender.tab.incognito
+        : false;
+      const serviceName = message.serviceName;
+      const sourceLanguage = message.sourceLanguage;
+      const targetLanguage = message.targetLanguage;
+      const sourceArray2d = message.sourceArray2d;
+      translationService
+        .translateHTML(
+          serviceName,
+          sourceLanguage || 'auto',
+          targetLanguage,
+          sourceArray2d,
+          dontSaveInPersistentCache
+        )
+        .then((result) => {
+          sendResponse(result);
+        })
+        .catch((error) => {
+          console.error('翻译失败:', error);
+          sendResponse({ error: '翻译失败: ' + (error as Error).message });
+        });
+        return true;
+    } else if (message.action === 'translateText'){
+      translationService
+        .translateText(
+          message.serviceName,
+          message.sourceLanguage || 'auto',
+          message.targetLanguage,
+          message.sourceText,
+          message.dontSaveInPersistentCache
+        )
+        .then((result) => {
+          sendResponse(result);
+        })
+        .catch((error) => {
+          console.error('翻译失败:', error);
+          sendResponse({ error: '翻译失败: ' + (error as Error).message });
+        });
+      return true;
+    } else if (message.action === 'translateSingleText') {
+      translationService
+        .translateText(
+          message.serviceName,
+          message.sourceLanguage || 'auto',
+          message.targetLanguage,
+          message.sourceText,
+          message.dontSaveInPersistentCache
+        )
+        .then((result) => {
+          sendResponse(result);
+        })
+        .catch((error) => {
+          console.error('翻译失败:', error);
+          sendResponse({ error: '翻译失败: ' + (error as Error).message });
+        });
+      return true;
     }
-    return true;
   });
 
   // 设置侧边栏默认打开位置
@@ -406,9 +405,14 @@ export default defineBackground(() => {
     });
 
   // 插件安装或更新时初始化
-  chrome.runtime.onInstalled.addListener(() => {
-    // 设置上下文菜单
-    setupContextMenus();
+  chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === 'install') {
+      // 设置上下文菜单
+      setupContextMenus();
+    } else if (details.reason === 'update' && details.previousVersion !== chrome.runtime.getManifest().version) {
+      // 清除翻译缓存
+      translationCache.deleteTranslationCache()
+    }
   });
 
   // 监听 chrome.storage 的变化
@@ -432,9 +436,118 @@ export default defineBackground(() => {
         (option) => option.value === newTargetLanguage
       )?.label;
 
-      chrome.contextMenus.update('translateText', {
+      chrome.contextMenus.update('translatePage', {
         title: `翻译为${targetLanguageLabel} [${newShortcutTranslatePage}]`,
       });
     }
   });
+
+  // 处理获取活动标签页
+  function handleGetActiveTab(sendResponse: (response?: any) => void) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length > 0) {
+        sendResponse({ tab: tabs[0] });
+      } else {
+        sendResponse({ error: 'No active tab found' });
+      }
+    });
+  }
+
+  // 处理打开选项页面
+  function handleOpenOptionsPage(hash?: string) {
+    // 打开选项页面，可以带上哈希值以直接导航到特定页面
+    if (hash) {
+      chrome.runtime.openOptionsPage(() => {
+        // 打开后延迟一下再修改hash，确保页面已加载
+        setTimeout(() => {
+          chrome.runtime.sendMessage({
+            action: 'navigateOptionsTo',
+            hash,
+          });
+        }, 300);
+      });
+    } else {
+      chrome.runtime.openOptionsPage();
+    }
+  }
+
+  // 处理截取当前可见页面
+  function handleCaptureVisibleTab(
+    tabId: number | undefined,
+    sendResponse: (response?: any) => void
+  ) {
+    if (!tabId) {
+      sendResponse({ error: 'Invalid tab ID' });
+      return;
+    }
+
+    chrome.tabs.captureVisibleTab(
+      { format: 'png', quality: 100 },
+      (dataUrl) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({
+            error: 'Failed to capture screenshot: ' + chrome.runtime.lastError,
+          });
+        } else {
+          sendResponse({ imageUrl: dataUrl });
+        }
+      }
+    );
+  }
+
+  // 处理保存屏幕区域截图
+  function handleSaveScreenshotArea(
+    tabId: number | undefined,
+    area: any,
+    sendResponse: (response?: any) => void
+  ) {
+    if (!tabId) {
+      sendResponse({ error: 'Invalid tab ID' });
+      return;
+    }
+
+    // 这里应该有处理截图区域的逻辑
+    // 由于浏览器API限制，我们需要使用canvas在内容脚本中截图，然后发送回来
+    sendResponse({ success: true, area });
+  }
+
+  // 处理发送命令到目标标签页
+  function handleSendCommands(
+    tabId: number,
+    commands: string[],
+    sendResponse: (response?: any) => void
+  ) {
+    if (!tabId) {
+      sendResponse({ error: 'Invalid tab ID' });
+      return;
+    }
+
+    chrome.tabs.sendMessage(
+      tabId,
+      { action: 'executeCommands', commands },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({
+            error:
+              'Failed to send commands: ' + chrome.runtime.lastError.message,
+          });
+        } else {
+          sendResponse({ success: true, response });
+        }
+      }
+    );
+  }
+
+  // 处理打开新标签页
+  function handleOpenTab(url: string, sendResponse: (response?: any) => void) {
+    chrome.tabs.create({ url }, (tab) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({
+          error: 'Failed to open tab: ' + chrome.runtime.lastError.message,
+        });
+      } else {
+        sendResponse({ success: true, tab });
+      }
+    });
+  }
 });

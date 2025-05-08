@@ -4,7 +4,8 @@ import {
   EyeInvisibleOutlined,
   EyeTwoTone,
   PlusOutlined,
-  TranslationOutlined
+  TranslationOutlined,
+  FormOutlined
 } from '@ant-design/icons';
 import {
   Button,
@@ -20,7 +21,9 @@ import {
   Space,
   Switch,
   Tag,
-  Typography
+  Typography,
+  Table,
+  Tooltip
 } from 'antd';
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
@@ -109,10 +112,15 @@ const TranslationSettings: React.FC = () => {
   const [addProviderModalVisible, setAddProviderModalVisible] = useState(false);
   const [addProviderForm] = Form.useForm();
 
+  // 自定义词典相关状态
+  const [customDictionaryModalVisible, setCustomDictionaryModalVisible] = useState(false);
+  const [customDictionaryKeyword, setCustomDictionaryKeyword] = useState('');
+  const [customDictionaryValue, setCustomDictionaryValue] = useState('');
+
   // 从store获取翻译设置和更新方法
   const translation = useTranslation();
-  const { forbiddenWebsites } = translation;
-  const { updateTranslation } = useConfigStore();
+  const { forbiddenWebsites, customDictionary = {} } = translation;
+  const { updateTranslation, addCustomDictionaryEntry, removeCustomDictionaryEntry } = useConfigStore();
   const providers = useProviders();
   const selectedProvider = useSelectedProvider();
 
@@ -127,7 +135,8 @@ const TranslationSettings: React.FC = () => {
     enableInputTranslation: false,
     enableHoverTranslation: true,
     hoverHotkey: 'option',
-    hoverTranslationService: 'google'
+    hoverTranslationService: 'google',
+    customDictionary: {}
   };
 
   // 加载设置到表单
@@ -291,6 +300,44 @@ const TranslationSettings: React.FC = () => {
     });
   };
 
+  // 添加自定义词典条目
+  const handleAddCustomDictionaryEntry = () => {
+    if (!customDictionaryKeyword.trim()) {
+      messageApi.info('请输入关键词');
+      return;
+    }
+
+    if (!customDictionaryValue.trim()) {
+      messageApi.info('请输入替换值');
+      return;
+    }
+
+    // 检查是否已存在相同关键词
+    if (customDictionaryKeyword.trim() in customDictionary) {
+      messageApi.warning('该关键词已存在');
+      return;
+    }
+
+    // 添加到词典
+    addCustomDictionaryEntry(customDictionaryKeyword.trim(), customDictionaryValue.trim());
+    messageApi.success('添加成功');
+
+    // 清空输入框
+    setCustomDictionaryKeyword('');
+    setCustomDictionaryValue('');
+  };
+
+  // 删除自定义词典条目
+  const handleDeleteCustomDictionaryEntry = (keyword: string) => {
+    removeCustomDictionaryEntry(keyword);
+    messageApi.success('删除成功');
+  };
+
+  // 打开自定义词典模态框
+  const openCustomDictionaryModal = () => {
+    setCustomDictionaryModalVisible(true);
+  };
+
   // 渲染提供商图标
   const renderProviderLogo = (providerName: string) => {
     // 显示provider名称的第一个字母作为logo
@@ -312,6 +359,38 @@ const TranslationSettings: React.FC = () => {
       </div>
     );
   };
+
+  // 自定义词典表格列定义
+  const customDictionaryColumns = [
+    {
+      title: '原文',
+      dataIndex: 'key',
+      key: 'key',
+    },
+    {
+      title: '替换为',
+      dataIndex: 'value',
+      key: 'value',
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_: any, record: {key: string, value: string}) => (
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => handleDeleteCustomDictionaryEntry(record.key)}
+        />
+      ),
+    },
+  ];
+
+  // 将对象格式转换为表格数据格式
+  const customDictionaryTableData = Object.entries(customDictionary || {}).map(([key, value]) => ({
+    key,
+    value: value as string
+  }));
 
   return (
     <>
@@ -407,6 +486,31 @@ const TranslationSettings: React.FC = () => {
               <Form.Item name="displayStyle" noStyle>
                 <Select style={{ width: 200 }} options={DISPLAY_STYLE_OPTIONS} />
               </Form.Item>
+            </Flex>
+
+            <StyledDivider />
+
+            <Flex justify="space-between" align="center">
+              <div>
+                <Label>自定义词典</Label>
+                <Text
+                  type="secondary"
+                  style={{
+                    display: 'block',
+                    fontWeight: 400,
+                    marginTop: 4,
+                  }}
+                >
+                  自定义词汇替换，翻译时保留特定词汇或自定义翻译结果
+                </Text>
+              </div>
+              <Button
+                type="primary"
+                icon={<FormOutlined />}
+                onClick={openCustomDictionaryModal}
+              >
+                管理词典
+              </Button>
             </Flex>
           </StyledCard>
         </StyledSection>
@@ -670,6 +774,63 @@ const TranslationSettings: React.FC = () => {
             </Button>
           </div>
       </Form>
+      </Modal>
+
+      {/* 自定义词典管理弹窗 */}
+      <Modal
+        title="自定义词典管理"
+        open={customDictionaryModalVisible}
+        onCancel={() => setCustomDictionaryModalVisible(false)}
+        footer={null}
+        width={700}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Paragraph>
+            添加自定义词汇替换规则，翻译时会优先使用您定义的词汇。这对于保留专有名词、术语或自定义翻译特别有用。
+          </Paragraph>
+
+          <Flex style={{ marginTop: 16, marginBottom: 16 }} gap={8}>
+            <Input
+              placeholder="输入原文关键词"
+              value={customDictionaryKeyword}
+              onChange={(e) => setCustomDictionaryKeyword(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <Input
+              placeholder="输入替换的内容"
+              value={customDictionaryValue}
+              onChange={(e) => setCustomDictionaryValue(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleAddCustomDictionaryEntry}
+            >
+              添加
+            </Button>
+          </Flex>
+
+          <Table
+            columns={customDictionaryColumns}
+            dataSource={customDictionaryTableData}
+            rowKey="key"
+            pagination={{ pageSize: 5 }}
+            locale={{ emptyText: '暂无自定义词汇' }}
+          />
+        </div>
+
+        <div
+          style={{
+            marginTop: 24,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <Button type="primary" onClick={() => setCustomDictionaryModalVisible(false)}>
+            关闭
+          </Button>
+        </div>
       </Modal>
     </>
   );

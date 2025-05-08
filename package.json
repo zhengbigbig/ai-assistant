@@ -89,5 +89,18 @@
         }
       }
     }
-  }
+  },
+  "description": "<a alt=\"Nx logo\" href=\"https://nx.dev\" target=\"_blank\" rel=\"noreferrer\"><img src=\"https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png\" width=\"45\"></a>",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhengbigbig/ai-assistant.git"
+  },
+  "keywords": [],
+  "author": "",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/zhengbigbig/ai-assistant/issues"
+  },
+  "homepage": "https://github.com/zhengbigbig/ai-assistant#readme"
 }

@@ -6,7 +6,10 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { StyleSheetManager } from 'styled-components';
 import TextSelectionManager from './components/TextSelectionManager';
 import ScreenshotManager from './components/ScreenshotManager';
-import TranslationManager from './components/TranslationManager';
+import PageTranslator from './components/Translator/PageTranslator';
+import HoverTranslator from './components/Translator/HoverTranslator';
+import SubtitleTranslator from './components/Translator/SubtitleTranslator';
+import InputTranslator from './components/Translator/InputTranslator';
 
 // 引入全局样式
 import '../../styles/global.css';
@@ -29,7 +32,10 @@ function App({ shadowRoot }: { shadowRoot: ShadowRoot }) {
           <DndProvider backend={HTML5Backend}>
             <TextSelectionManager />
             <ScreenshotManager />
-            <TranslationManager />
+            <PageTranslator />
+            <HoverTranslator />
+            <SubtitleTranslator />
+            <InputTranslator />
           </DndProvider>
         </ConfigProvider>
       </StyleProvider>

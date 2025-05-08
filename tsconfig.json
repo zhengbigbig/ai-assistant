@@ -15,5 +15,10 @@
     {
       "path": "./apps/sdk"
     }
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "demos"
   ]
 }

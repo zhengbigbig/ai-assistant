@@ -42,6 +42,7 @@ export interface TranslationSettings {
   enableHoverTranslation: boolean;
   hoverHotkey: string;
   hoverTranslationService: string;
+  customDictionary: Record<string, string>; // 自定义词典
 }
 
 // 网页助手设置接口
@@ -194,12 +195,17 @@ export interface ConfigState {
   // 账户操作
   updateAccount: (account: Partial<AccountInfo>) => void;
   logout: () => void;
+
+  // 自定义词典操作
+  addCustomDictionaryEntry: (key: string, value: string) => void;
+  removeCustomDictionaryEntry: (key: string) => void;
+  clearCustomDictionary: () => void;
 }
 
 // 创建持久化的zustand store
 export const useConfigStore = create<ConfigState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // 初始状态
       providers: [
         {
@@ -308,7 +314,8 @@ export const useConfigStore = create<ConfigState>()(
         enableInputTranslation: false,
         enableHoverTranslation: true,
         hoverHotkey: TranslationHotkey.OPTION,
-        hoverTranslationService: 'google'
+        hoverTranslationService: 'google',
+        customDictionary: {}, // 初始化为空对象
       },
 
       // 网页助手设置默认值
@@ -541,6 +548,41 @@ export const useConfigStore = create<ConfigState>()(
           state.account = null;
         })
       ),
+
+      // 自定义词典操作
+      addCustomDictionaryEntry: (key: string, value: string) => {
+        if (!key.trim()) return;
+
+        set(
+          produce((state) => {
+            // 确保customDictionary已初始化
+            if (!state.translation.customDictionary) {
+              state.translation.customDictionary = {};
+            }
+
+            // 添加或更新条目
+            state.translation.customDictionary[key.trim()] = value.trim();
+          })
+        );
+      },
+
+      removeCustomDictionaryEntry: (key: string) => {
+        set(
+          produce((state) => {
+            if (state.translation.customDictionary && key in state.translation.customDictionary) {
+              delete state.translation.customDictionary[key];
+            }
+          })
+        );
+      },
+
+      clearCustomDictionary: () => {
+        set(
+          produce((state) => {
+            state.translation.customDictionary = {};
+          })
+        );
+        },
     }),
     {
       name: CONFIG_STORAGE_KEY,
