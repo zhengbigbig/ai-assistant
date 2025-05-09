@@ -1,32 +1,31 @@
+import {
+  ClockCircleOutlined,
+  CloseCircleOutlined,
+  CloseOutlined,
+  CommentOutlined,
+  CustomerServiceOutlined,
+  SettingFilled,
+  TranslationOutlined,
+} from '@ant-design/icons';
+import { Button, Dropdown, FloatButton, Menu } from 'antd';
 import React, { useEffect, useState } from 'react';
-import { Button, Dropdown, Menu } from 'antd';
-import { TranslationOutlined } from '@ant-design/icons';
 import styled from 'styled-components';
 import { useConfigStore, useTranslation } from '../../../stores/configStore';
+import { useTranslationStore } from '../../../stores/translationStore';
+import { languages } from '../../../utils/languages';
 import {
   detectPageLanguage,
   disableMutationObserver,
   enableMutationObserver,
   restorePage,
-  showCopiedNodes,
   translatePage,
 } from './helpers';
-import { useTranslationStore } from '../../../stores/translationStore';
-import { languages } from '../../../utils/languages';
 
-// 页面翻译按钮样式
-const TranslateButton = styled(Button)`
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 1000;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
+const CloseIcon = styled(CloseCircleOutlined)`
+  color: rgba(0, 0, 0, 0.45);
+  &:hover {
+    color: rgba(0, 0, 0, 0.65);
+  }
 `;
 
 /**
@@ -34,6 +33,8 @@ const TranslateButton = styled(Button)`
  * 提供整个页面的翻译功能
  */
 const PageTranslator: React.FC = () => {
+  const [open, setOpen] = useState(false);
+  const [settingOpen, setSettingOpen] = useState(false);
   // 翻译状态
   const [isTranslating, setIsTranslating] = useState(false);
 
@@ -43,7 +44,9 @@ const PageTranslator: React.FC = () => {
 
   // ctx上下文
   const ctx = useTranslationStore((state) => state.ctx);
-  const pageLanguageState = useTranslationStore((state) => state.pageLanguageState);
+  const pageLanguageState = useTranslationStore(
+    (state) => state.pageLanguageState
+  );
   // 是否已经翻译
   const isTranslated = pageLanguageState === 'translated';
   // 检查当前网站是否在禁止翻译列表中
@@ -65,25 +68,6 @@ const PageTranslator: React.FC = () => {
       }
     });
   }, []);
-  // 下拉菜单项
-  const menuItems = [
-    {
-      key: 'translate',
-      label: isTranslated ? '恢复原文' : '翻译页面',
-      onClick: translatePage,
-    },
-    {
-      key: 'settings',
-      label: '翻译设置',
-      onClick: () => {
-        // 打开翻译设置面板
-        chrome.runtime.sendMessage({
-          action: 'openOptionsPage',
-          hash: '#/translation',
-        });
-      },
-    },
-  ];
 
   // 初始化
   useEffect(() => {
@@ -233,18 +217,56 @@ const PageTranslator: React.FC = () => {
 
   // 显示翻译按钮
   return (
-    <Dropdown
-      overlay={<Menu items={menuItems} />}
-      trigger={['click']}
-      placement="topRight"
+    <FloatButton.Group
+      open={open}
+      shape="square"
+      trigger="hover"
+      onOpenChange={setOpen}
+      style={{ insetInlineEnd: 8 }}
+      icon={<CustomerServiceOutlined />}
+      closeIcon={<CustomerServiceOutlined />}
+      badge={{
+        count: open ? (
+          <div
+          >
+            <CloseIcon />
+          </div>
+        ) : (
+          0
+        ),
+        showZero: false,
+      }}
     >
-      <TranslateButton
-        type="primary"
-        icon={<TranslationOutlined />}
-        loading={isTranslating}
-        className={isTranslated ? 'translated' : ''}
+      {settingOpen && (
+        <FloatButton
+          style={{ transition: 'ease-in-out 0.5s' }}
+          onMouseMove={() => setSettingOpen(true)}
+          onMouseLeave={() => setSettingOpen(false)}
+          icon={<SettingFilled />}
+          onClick={() => {
+            // 打开翻译设置面板
+            chrome.runtime.sendMessage({
+              action: 'openOptionsPage',
+              hash: '#/translation',
+            });
+          }}
+        />
+      )}
+      <FloatButton
+        onMouseMove={() => setSettingOpen(true)}
+        onMouseLeave={() => setSettingOpen(false)}
+        icon={isTranslated ? <TranslationOutlined /> : <TranslationOutlined />}
+        onClick={() => {
+          if (isTranslated) {
+            restorePage();
+          } else {
+            translatePage();
+          }
+        }}
       />
-    </Dropdown>
+      <FloatButton />
+      <FloatButton icon={<CommentOutlined />} />
+    </FloatButton.Group>
   );
 };
 
