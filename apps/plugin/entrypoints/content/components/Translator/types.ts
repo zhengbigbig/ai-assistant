@@ -1,9 +1,3 @@
-// 定义翻译文本项接口
-export interface TranslationTextItem {
-  text: string;
-  nodeId: number;
-}
-
 // 特殊网站规则接口
 export interface SpecialRule {
   name?: string;

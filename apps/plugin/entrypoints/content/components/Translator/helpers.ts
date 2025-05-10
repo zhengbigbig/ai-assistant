@@ -1,6 +1,11 @@
-import { message } from 'antd';
 import { DisplayMode, DisplayStyle } from '../../../constants/config';
 import { useConfigStore } from '../../../stores/configStore';
+import {
+  AttributeToTranslate,
+  PieceToTranslate,
+  useTranslationStore,
+} from '../../../stores/translationStore';
+import { languages } from '../../../utils/languages';
 import {
   BLOCK_ELEMENTS,
   HEADING_ELEMENTS,
@@ -8,19 +13,11 @@ import {
   HTML_TAGS_INLINE_TEXT,
   HTML_TAGS_NO_TRANSLATE,
   INLINE_ELEMENTS,
-  ORIGINAL_TEXT_ATTR,
   PDF_SELECTORS_CONFIG,
   specialRules,
   TRANSLATE_MARK_ATTR,
-  TRANSLATE_NODE_ID_ATTR,
 } from './constants';
-import { SpecialRule, TranslationTextItem } from './types';
-import {
-  AttributeToTranslate,
-  PieceToTranslate,
-  useTranslationStore,
-} from '../../../stores/translationStore';
-import { languages } from '../../../utils/languages';
+import { SpecialRule } from './types';
 
 // 这些标记不能包含单词，例如 <customskipword>12</customskipword>34
 // Google会重新排序为 <customskipword>1234</customskipword>

@@ -417,10 +417,6 @@ export const HTML_TAGS_INLINE_TEXT = ['#text', 'A', 'ABBR', 'ACRONYM', 'B', 'BDO
 
 // 翻译标记属性名
 export const TRANSLATE_MARK_ATTR = 'data-ai-assistant-translated';
-// 原始文本属性名
-export const ORIGINAL_TEXT_ATTR = 'data-ai-assistant-original';
-// 翻译节点ID属性名
-export const TRANSLATE_NODE_ID_ATTR = 'data-ai-assistant-node-id';
 
 // PDF选择器配置，用于识别PDF预览页面等特殊情况
 export const PDF_SELECTORS_CONFIG = {
