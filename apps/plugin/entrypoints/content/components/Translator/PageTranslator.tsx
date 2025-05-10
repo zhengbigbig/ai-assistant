@@ -257,6 +257,7 @@ const PageTranslator: React.FC = () => {
         onMouseLeave={() => setSettingOpen(false)}
         icon={isTranslated ? <TranslationOutlined /> : <TranslationOutlined />}
         onClick={() => {
+          console.log('isTranslated', isTranslated);
           if (isTranslated) {
             restorePage();
           } else {

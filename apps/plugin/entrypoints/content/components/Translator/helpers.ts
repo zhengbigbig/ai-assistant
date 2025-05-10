@@ -822,7 +822,6 @@ export const getNodesThatNeedToTranslate = async (
       }
     }
   }
-  console.log('allNodes', allNodes);
   return allNodes;
 };
 
@@ -1122,6 +1121,64 @@ export const bottomIsInScreen = (element: any) => {
   return false;
 };
 
+// 添加loading图标到待翻译节点
+export const addLoadingIconToNode = (node: Element) => {
+  // 检查节点是否已有loading图标
+  if (
+    node.nextSibling &&
+    (node.nextSibling as Element).classList?.contains(
+      'ai-assistant-loading-icon'
+    )
+  ) {
+    return;
+  }
+
+  // 创建loading图标元素 - 使用Ant Design的loading图标样式
+  const loadingIcon = document.createElement('span');
+  loadingIcon.classList.add('ai-assistant-loading-icon');
+  loadingIcon.style.display = 'inline-block';
+  loadingIcon.style.width = '16px';
+  loadingIcon.style.height = '16px';
+  loadingIcon.style.marginLeft = '4px';
+  loadingIcon.style.verticalAlign = 'middle';
+  loadingIcon.innerHTML = `
+    <svg viewBox="0 0 1024 1024" focusable="false" data-icon="loading" width="1em" height="1em" fill="#1677ff" aria-hidden="true">
+      <path d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 00-94.3-139.9 437.71 437.71 0 00-139.9-94.3C629 83.6 571.4 72 512 72c-19.9 0-36-16.1-36-36s16.1-36 36-36c69.1 0 136.2 13.5 199.3 40.3C772.3 66 827 103 874 150c47 47 83.9 101.8 109.7 162.7 26.7 63.1 40.2 130.2 40.2 199.3.1 19.9-16 36-35.9 36z"></path>
+    </svg>
+  `;
+
+  // 添加旋转动画样式，使loading图标旋转起来
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes ai-assistant-rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .ai-assistant-loading-icon svg {
+      animation: ai-assistant-rotate 1s linear infinite;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // 将loading图标插入到节点后面，视觉上看起来就像是在节点右侧
+  if (node.parentNode) {
+    node.parentNode.insertBefore(loadingIcon, node.nextSibling);
+  }
+};
+
+// 移除节点的loading图标
+export const removeLoadingIconFromNode = (node: Element) => {
+  // 获取节点后面的loading图标并移除
+  if (
+    node.nextSibling &&
+    (node.nextSibling as Element).classList?.contains(
+      'ai-assistant-loading-icon'
+    )
+  ) {
+    node.parentNode?.removeChild(node.nextSibling);
+  }
+};
+
 // 翻译页面
 export const translatePage = async () => {
   const targetLanguage = useConfigStore.getState().translation.targetLanguage;
@@ -1136,7 +1193,6 @@ export const translatePage = async () => {
     ).reduce((acc, node) => {
       return acc.concat(getPiecesToTranslate(node));
     }, []);
-    console.log('newPiecesToTranslate', newPiecesToTranslate);
     useTranslationStore.getState().setPiecesToTranslate(newPiecesToTranslate);
   } catch (error) {
     console.error('获取需要翻译的片段失败', error);
@@ -1231,6 +1287,13 @@ async function translateNewNodes() {
         }
 
         if (!finded) {
+          // 为每个新节点添加loading图标
+          newPiecesToTranslate[i].nodes.forEach((node: any) => {
+            if (node instanceof Element) {
+              addLoadingIconToNode(node);
+            }
+          });
+
           useTranslationStore
             .getState()
             .addPieceToTranslate(newPiecesToTranslate[i]);
@@ -1252,7 +1315,10 @@ function encapsulateTextNode(node: Element) {
 
   const fontNode = document.createElement('font');
   let style = 'vertical-align: inherit;';
-  if (isShowDualLanguage && (!pageSpecialConfig || pageSpecialConfig.style !== 'none')) {
+  if (
+    isShowDualLanguage &&
+    (!pageSpecialConfig || pageSpecialConfig.style !== 'none')
+  ) {
     const displayStyle = useConfigStore.getState().translation.displayStyle;
     if (displayStyle === 'underline') {
       style += 'border-bottom: 2px solid #72ECE9;';
@@ -1350,6 +1416,9 @@ async function translateResults(
         const nodes = piecesToTranslateNow[i].nodes;
         const translated = results[i][j] + ' ';
 
+        // 移除loading图标
+        removeLoadingIconFromNode(nodes[j] as Element);
+
         // 调用encapsulateTextNode替换节点并获取新节点
         const newNode = encapsulateTextNode(nodes[j] as Element);
 
@@ -1391,7 +1460,6 @@ async function translateDynamically() {
   try {
     const piecesToTranslate = useTranslationStore.getState().piecesToTranslate;
     const pageIsVisible = useTranslationStore.getState().pageIsVisible;
-    console.log('translateDynamically', piecesToTranslate, pageIsVisible)
     if (piecesToTranslate && pageIsVisible) {
       const currentFooCount = useTranslationStore.getState().fooCount;
 
@@ -1411,23 +1479,33 @@ async function translateDynamically() {
       });
 
       const attributesToTranslateNow: AttributeToTranslate[] = [];
-      const attributesToTranslate = useTranslationStore.getState().attributesToTranslate;
-      console.log('attributesToTranslate', attributesToTranslate)
+      const attributesToTranslate =
+        useTranslationStore.getState().attributesToTranslate;
       attributesToTranslate.forEach((ati, index) => {
-          if (!ati.isTranslated) {
-            if (isInScreen(ati.node)) {
-              // 不直接修改原对象，而是通过store更新
-              useTranslationStore
-                .getState()
-                .updateAttributeTranslated(index, true);
-              attributesToTranslateNow.push(ati);
-            }
+        if (!ati.isTranslated) {
+          if (isInScreen(ati.node)) {
+            // 不直接修改原对象，而是通过store更新
+            useTranslationStore
+              .getState()
+              .updateAttributeTranslated(index, true);
+            attributesToTranslateNow.push(ati);
           }
-        });
+        }
+      });
 
       if (piecesToTranslateNow.length > 0) {
+        // 为待翻译节点加上loading图标
+        piecesToTranslateNow.forEach((ptt) => {
+          ptt.nodes.forEach((node) => {
+            addLoadingIconToNode(node as Element);
+          });
+        });
         const results = await backgroundTranslateHTML(
-          piecesToTranslateNow.map((ptt) => ptt.nodes.map((node) => filterKeywordsInText(node.textContent || '')))
+          piecesToTranslateNow.map((ptt) =>
+            ptt.nodes.map((node) =>
+              filterKeywordsInText(node.textContent || '')
+            )
+          )
         );
         console.log('results', results);
         console.log('piecesToTranslateNow', piecesToTranslateNow);
