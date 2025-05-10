@@ -73,6 +73,7 @@ const PageTranslator: React.FC = () => {
   useEffect(() => {
     // 初始化上下文
     useTranslationStore.getState().initCtx();
+    useTranslationStore.getState().resetTranslationState();
     // 1. 当前窗口是顶层窗口
     if (window.self === window.top) {
       const onTabVisible = function () {
