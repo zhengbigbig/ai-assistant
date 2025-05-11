@@ -8,7 +8,6 @@ import {
 import { languages } from '../../../utils/languages';
 import {
   BLOCK_ELEMENTS,
-  HEADING_ELEMENTS,
   HTML_TAGS_INLINE_IGNORE,
   HTML_TAGS_INLINE_TEXT,
   HTML_TAGS_NO_TRANSLATE,
@@ -158,6 +157,25 @@ export const isValidNode = (node: Element): boolean => {
     }
   }
 
+  // 不考虑文本内容样式，若文本为空则返回false，使用innerText判断
+  if ((node as HTMLElement)?.innerText?.trim().length === 0) {
+    return false;
+  }
+
+  // 检查节点是否隐藏
+  if (node instanceof HTMLElement) {
+    const computedStyle = window.getComputedStyle(node);
+    if (
+      computedStyle.display === 'none' ||
+      computedStyle.visibility === 'hidden' ||
+      computedStyle.opacity === '0' ||
+      (computedStyle.height === '0px' && computedStyle.overflow === 'hidden') ||
+      node.offsetParent === null
+    ) {
+      return false;
+    }
+  }
+
   return true;
 };
 
@@ -165,7 +183,6 @@ export const isValidNode = (node: Element): boolean => {
 const isDuplicatedChild = (array: Element[], child: Element): boolean => {
   for (const item of array) {
     if (item.contains(child)) {
-      console.log('item', item, 'child', child);
       return true;
     }
   }
@@ -501,10 +518,7 @@ export const getNodesThatNeedToTranslate = async (
       noTranslateSelectors.join(',')
     );
     for (const node of noTranslateNodes) {
-      // 添加父占位符以保持位置
-      const placeholder = document.createElement('span');
-      placeholder.classList.add('notranslate');
-      addWrapperToNode(node, placeholder);
+      node.classList.add('notranslate');
     }
   }
 
@@ -522,25 +536,24 @@ export const getNodesThatNeedToTranslate = async (
   }
 
   // 处理iframe容器
-  let isIframeContainer = false;
   let currentRoot = root;
+
+  // 处理iframe容器
+  if (pageSpecialConfig && pageSpecialConfig.iframeContainer) {
+    const iframeContainer = root.querySelector(
+      pageSpecialConfig.iframeContainer
+    );
+    if (
+      iframeContainer &&
+      iframeContainer instanceof HTMLIFrameElement &&
+      iframeContainer.contentDocument
+    ) {
+      currentRoot = iframeContainer.contentDocument.body;
+    }
+  }
 
   // 如果有特殊选择器，使用它们查找节点
   if (allBlocksSelectors.length > 0) {
-    // 检查是否有iframe容器
-    if (pageSpecialConfig && pageSpecialConfig.iframeContainer) {
-      const iframeContainer = root.querySelector(
-        pageSpecialConfig.iframeContainer
-      );
-      if (
-        iframeContainer &&
-        iframeContainer instanceof HTMLIFrameElement &&
-        iframeContainer.contentDocument
-      ) {
-        currentRoot = iframeContainer.contentDocument.body;
-        isIframeContainer = true;
-      }
-    }
     // 使用选择器查找节点
     for (const selector of allBlocksSelectors) {
       if (currentRoot && currentRoot.querySelectorAll) {
@@ -571,65 +584,70 @@ export const getNodesThatNeedToTranslate = async (
         }
       }
     }
-  }
-
-  // 如果不是iframe容器或有容器选择器或没有块级选择器
-  if (
-    !isIframeContainer &&
-    ((pageSpecialConfig && pageSpecialConfig.containerSelectors) ||
-      allBlocksSelectors.length === 0)
-  ) {
-    const originalRoot = currentRoot;
+  } else {
+    // 使用TreeWalker遍历DOM树查找块级元素
     const contentContainers = getContainers(currentRoot, pageSpecialConfig);
-    let containers: Element[] = [];
 
-    if (pageSpecialConfig && pageSpecialConfig.containerSelectors) {
-      if (!Array.isArray(pageSpecialConfig.containerSelectors)) {
-        pageSpecialConfig.containerSelectors = [
-          pageSpecialConfig.containerSelectors,
-        ];
-      }
-      // check length
-      if (pageSpecialConfig.containerSelectors.length === 0) {
-        containers = [currentRoot];
-      }
-    }
+    // 确定要遍历的容器
+    let containers: Element[] = [];
     if (contentContainers && Array.isArray(contentContainers)) {
       containers = contentContainers;
+    } else {
+      containers = [currentRoot];
     }
-    // 遍历容器和块级标签，查找需要翻译的段落
+    // 遍历每个容器
     for (const container of containers) {
-      for (const blockTag of blockElementsList) {
-        const paragraphs = container.querySelectorAll(blockTag.toLowerCase());
-        for (const paragraph of paragraphs) {
-          console.log(
-            blockTag,
-            'paragraph',
-            paragraph,
-            isValidNode(paragraph),
-            !isDuplicatedChild(allNodes, paragraph)
-          );
-          if (
-            isValidNode(paragraph) &&
-            !isDuplicatedChild(allNodes, paragraph)
-          ) {
-            allNodes.push(paragraph);
-          }
-        }
-      }
-
-      // 如果没有指定容器选择器，则添加额外的标题节点
-      if (!pageSpecialConfig || !pageSpecialConfig.containerSelectors) {
-        // 添加额外的标题节点
-        for (const headingTag of HEADING_ELEMENTS) {
-          const headings = originalRoot.querySelectorAll(headingTag);
-
-          for (const heading of headings) {
-            if (isValidNode(heading) && !allNodes.includes(heading)) {
-              allNodes.push(heading);
+      // 创建TreeWalker，只关注元素节点
+      const treeWalker = document.createTreeWalker(
+        container,
+        NodeFilter.SHOW_ELEMENT,
+        {
+          acceptNode: (node) => {
+            // 无效节点直接拒绝
+            if (!isValidNode(node as Element)) {
+              // 拒绝该节点及其所有子节点，完全跳过这个分支
+              return NodeFilter.FILTER_REJECT;
             }
-          }
+
+            // 当前node非块级元素，则跳过该节点
+            if (!blockElementsList.includes(node.nodeName)) {
+              return NodeFilter.FILTER_SKIP;
+            }
+
+            // 检查是否为叶子节点（没有元素子节点）
+            let isLeafNode = true;
+            for (let i = 0; i < node.childNodes.length; i++) {
+              const nodeName = node.childNodes[i].nodeName;
+              // 如果有块级子节点，则不是叶子节点
+              if (blockElementsList.includes(nodeName)) {
+                isLeafNode = false;
+                break;
+              }
+            }
+            // 如果是块级元素且是有文本内容的叶子节点，则接受
+            if (blockElementsList.includes(node.nodeName) && isLeafNode) {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+
+            // 如果不是块级元素但是有文本内容的叶子节点，也接受
+            if (isLeafNode) {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+
+            // 对于有子元素的节点，跳过该节点本身，但继续处理其子节点
+            return NodeFilter.FILTER_SKIP;
+          },
         }
+      );
+
+      // 遍历DOM树并收集符合条件的节点
+      let currentNode = treeWalker.nextNode();
+      while (currentNode) {
+        console.log(111, allNodes, currentNode);
+        if (!isDuplicatedChild(allNodes, currentNode as Element)) {
+          allNodes.push(currentNode as Element);
+        }
+        currentNode = treeWalker.nextNode();
       }
     }
   }
@@ -1250,7 +1268,6 @@ export const translatePage = async () => {
     ).reduce((acc, node) => {
       return acc.concat(getPiecesToTranslate(node));
     }, []);
-    console.log('newPiecesToTranslate', newPiecesToTranslate);
     useTranslationStore.getState().setPiecesToTranslate(newPiecesToTranslate);
   } catch (error) {
     console.error('获取需要翻译的片段失败', error);
@@ -1565,8 +1582,6 @@ async function translateDynamically() {
             )
           )
         );
-        console.log('results', results);
-        console.log('piecesToTranslateNow', piecesToTranslateNow);
         if (
           useTranslationStore.getState().pageLanguageState === 'translated' &&
           currentFooCount === useTranslationStore.getState().fooCount

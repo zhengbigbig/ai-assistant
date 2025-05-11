@@ -257,6 +257,7 @@ export const specialRules = [
     //   "a [aria-level='3'] + div",
     //   '.Uroaid',
     // ],
+    noTranslateSelectors: ['[role="navigation"]', '#searchform', '#sfooter'],
     detectLanguage: true,
   },
   {
@@ -373,10 +374,8 @@ export const BLOCK_ELEMENTS = [
   'P',
   'LI',
   'PRE',
-  'DIV',
+  'DIV'
 ];
-// 标题元素
-export const HEADING_ELEMENTS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 
 // 内联元素列表 - 主要添加间距
 export const INLINE_ELEMENTS = [
