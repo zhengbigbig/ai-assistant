@@ -573,8 +573,8 @@ export const getNodesThatNeedToTranslate = async (
                 continue;
               }
             } catch (e) {
+              console.error('checkIsSameLanguage error:', e);
               // ignore
-              // console.log("e", e)
             }
           }
           // 检查节点是否有效且未重复
@@ -643,7 +643,6 @@ export const getNodesThatNeedToTranslate = async (
       // 遍历DOM树并收集符合条件的节点
       let currentNode = treeWalker.nextNode();
       while (currentNode) {
-        console.log(111, allNodes, currentNode);
         if (!isDuplicatedChild(allNodes, currentNode as Element)) {
           allNodes.push(currentNode as Element);
         }
@@ -669,15 +668,15 @@ export const getNodesThatNeedToTranslate = async (
         if (nodeText && nodeText.trim().length > 0) {
           try {
             // 检测节点文本语言
-            const detectedLang = await detectLanguage(nodeText);
+            // const detectedLang = await detectLanguage(nodeText);
 
-            // 如果不是目标语言，则添加到翻译列表
-            if (
-              detectedLang &&
-              !checkIsSameLanguage(detectedLang, [targetLanguage])
-            ) {
-              newAllNodes.push(node);
-            }
+            // // 如果不是目标语言，则添加到翻译列表
+            // if (
+            //   detectedLang &&
+            //   !checkIsSameLanguage(detectedLang, [targetLanguage])
+            // ) {
+            newAllNodes.push(node);
+            // }
           } catch (error) {
             console.error('语言检测失败:', error);
             // 如果检测失败，仍然添加节点（宁可错译也不漏译）
@@ -1256,6 +1255,7 @@ export const removeLoadingIconFromNode = (node: Element) => {
 
 // 翻译页面
 export const translatePage = async () => {
+  console.log('translatePage');
   const targetLanguage = useConfigStore.getState().translation.targetLanguage;
   // 增加计数器，用于追踪翻译状态的变化
   useTranslationStore.getState().incrementFooCount();
@@ -1376,7 +1376,7 @@ async function translateNewNodes() {
       }
     }
   } catch (e) {
-    console.error(e);
+    console.error('translateNewNodes error:', e);
   } finally {
     useTranslationStore.getState().clearNodes();
   }
@@ -1458,6 +1458,7 @@ async function handleCustomWords(translated: string, originalText: string) {
       }
     }
   } catch (e) {
+    console.error('handleCustomWords error:', e);
     return await backgroundTranslateSingleText(originalText);
   }
 
@@ -1465,13 +1466,15 @@ async function handleCustomWords(translated: string, originalText: string) {
 }
 
 // 向后台发送请求翻译单个文本
-function backgroundTranslateSingleText(source: string) {
+function backgroundTranslateSingleText(sourceArray2d: string) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(
       {
         action: 'translateSingleText',
+        serviceName: useConfigStore.getState().translation.translationService,
+        sourceLanguage: useTranslationStore.getState().originalTabLanguage,
         targetLanguage: useConfigStore.getState().translation.targetLanguage,
-        source,
+        sourceArray2d,
       },
       (response) => {
         resolve(response);
@@ -1515,13 +1518,15 @@ async function translateResults(
 }
 
 // 向后台发送请求翻译文本数组
-function backgroundTranslateText(sourceArray: any) {
+function backgroundTranslateText(sourceArray2d: any) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(
       {
         action: 'translateText',
+        serviceName: useConfigStore.getState().translation.translationService,
+        sourceLanguage: useTranslationStore.getState().originalTabLanguage,
         targetLanguage: useConfigStore.getState().translation.targetLanguage,
-        sourceArray,
+        sourceArray2d,
       },
       (response) => {
         resolve(response);
@@ -1577,9 +1582,9 @@ async function translateDynamically() {
         });
         const results = await backgroundTranslateHTML(
           piecesToTranslateNow.map((ptt) =>
-            ptt.nodes.map((node) =>
-              filterKeywordsInText(node.textContent || '')
-            )
+            ptt.nodes.map((node) => {
+              return filterKeywordsInText(node.textContent || '');
+            })
           )
         );
         if (
@@ -1591,6 +1596,7 @@ async function translateDynamically() {
       }
 
       if (attributesToTranslateNow.length > 0) {
+        console.log('attributesToTranslateNow', attributesToTranslateNow);
         backgroundTranslateText(
           attributesToTranslateNow.map((ati) => ati.original)
         ).then((results) => {
@@ -1604,9 +1610,9 @@ async function translateDynamically() {
       }
     }
   } catch (e) {
-    console.error(e);
+    console.error('translateDynamically error:', e);
   }
-  setTimeout(translateDynamically, 600);
+  setTimeout(translateDynamically, 1500);
 }
 
 // 翻译属性
@@ -1622,15 +1628,13 @@ function translateAttributes(
 
 // 翻译HTML
 async function backgroundTranslateHTML(sourceArray2d: string[][]) {
-  const translationService =
-    useConfigStore.getState().translation.translationService;
-  const targetLanguage = useConfigStore.getState().translation.targetLanguage;
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(
       {
         action: 'translateHTML',
-        translationService,
-        targetLanguage,
+        serviceName: useConfigStore.getState().translation.translationService,
+        sourceLanguage: useTranslationStore.getState().originalTabLanguage,
+        targetLanguage: useConfigStore.getState().translation.targetLanguage,
         sourceArray2d,
       },
       (response) => {

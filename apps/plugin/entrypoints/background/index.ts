@@ -366,7 +366,7 @@ export default defineBackground(() => {
           message.serviceName,
           message.sourceLanguage || 'auto',
           message.targetLanguage,
-          message.sourceText,
+          message.sourceArray2d,
           message.dontSaveInPersistentCache
         )
         .then((result) => {
@@ -383,7 +383,7 @@ export default defineBackground(() => {
           message.serviceName,
           message.sourceLanguage || 'auto',
           message.targetLanguage,
-          message.sourceText,
+          message.sourceArray2d,
           message.dontSaveInPersistentCache
         )
         .then((result) => {
