@@ -165,6 +165,7 @@ export const isValidNode = (node: Element): boolean => {
 const isDuplicatedChild = (array: Element[], child: Element): boolean => {
   for (const item of array) {
     if (item.contains(child)) {
+      console.log('item', item, 'child', child);
       return true;
     }
   }
@@ -540,7 +541,6 @@ export const getNodesThatNeedToTranslate = async (
         isIframeContainer = true;
       }
     }
-
     // 使用选择器查找节点
     for (const selector of allBlocksSelectors) {
       if (currentRoot && currentRoot.querySelectorAll) {
@@ -597,13 +597,18 @@ export const getNodesThatNeedToTranslate = async (
     if (contentContainers && Array.isArray(contentContainers)) {
       containers = contentContainers;
     }
-
     // 遍历容器和块级标签，查找需要翻译的段落
     for (const container of containers) {
       for (const blockTag of blockElementsList) {
         const paragraphs = container.querySelectorAll(blockTag.toLowerCase());
-
         for (const paragraph of paragraphs) {
+          console.log(
+            blockTag,
+            'paragraph',
+            paragraph,
+            isValidNode(paragraph),
+            !isDuplicatedChild(allNodes, paragraph)
+          );
           if (
             isValidNode(paragraph) &&
             !isDuplicatedChild(allNodes, paragraph)
@@ -832,42 +837,51 @@ export const getPiecesToTranslate = (
   bottomElement: Element | null;
   nodes: Element[];
 }[] => {
+  // 初始化存储翻译片段的数组，每个片段包含多个节点和相关信息
   const piecesToTranslate: any[] = [
     {
-      isTranslated: false,
-      parentElement: null,
-      topElement: null,
-      bottomElement: null,
-      nodes: [],
+      isTranslated: false, // 标记该片段是否已被翻译
+      parentElement: null, // 所有节点的共同父元素
+      topElement: null, // 第一个节点的顶部元素
+      bottomElement: null, // 最后一个节点的底部元素
+      nodes: [], // 实际需要翻译的节点数组
     },
   ];
-  let index = 0;
-  let currentParagraphSize = 0;
+  let index = 0; // 当前处理的片段索引
+  let currentParagraphSize = 0; // 当前段落大小，用于控制分段
 
+  // 递归遍历DOM树获取所有需要翻译的节点
   const getAllNodes = function (
-    node: any,
-    lastHTMLElement?: Element | null,
-    lastSelectOrDataListElement?: Element | null
+    node: any, // 当前处理的节点
+    lastHTMLElement?: Element | null, // 最后一个HTML元素，用于定位
+    lastSelectOrDataListElement?: Element | null // 最后一个SELECT或DATALIST元素，需特殊处理
   ) {
+    // 处理元素节点(nodeType=1)和文档片段节点(nodeType=11)
     if (node.nodeType == 1 || node.nodeType == 11) {
+      // 如果是文档片段节点(如Shadow DOM)
       if (node.nodeType == 11) {
-        lastHTMLElement = node.host;
+        lastHTMLElement = node.host; // 使用宿主元素
         lastSelectOrDataListElement = null;
       } else if (node.nodeType == 1) {
+        // 如果是普通元素节点
         lastHTMLElement = node;
+        // 记录SELECT或DATALIST元素，因为它们的子元素OPTION需要特殊处理
         if (node.nodeName === 'SELECT' || node.nodeName === 'DATALIST')
           lastSelectOrDataListElement = node;
 
+        // 跳过不需要翻译的节点类型
         if (
-          HTML_TAGS_INLINE_IGNORE.indexOf(node.nodeName) !== -1 ||
-          HTML_TAGS_NO_TRANSLATE.indexOf(node.nodeName) !== -1 ||
-          node.classList.contains('notranslate') ||
-          node.getAttribute('translate') === 'no' ||
-          node.isContentEditable
+          HTML_TAGS_INLINE_IGNORE.indexOf(node.nodeName) !== -1 || // 忽略的内联元素
+          HTML_TAGS_NO_TRANSLATE.indexOf(node.nodeName) !== -1 || // 不翻译的标签(如SCRIPT)
+          node.classList.contains('notranslate') || // 有notranslate类
+          node.getAttribute('translate') === 'no' || // translate属性为no
+          node.isContentEditable // 可编辑内容
         ) {
+          // 如果当前片段已有节点，创建新片段
           if (piecesToTranslate[index].nodes.length > 0) {
             currentParagraphSize = 0;
             piecesToTranslate[index].bottomElement = lastHTMLElement;
+            // 添加新的空白片段
             piecesToTranslate.push({
               isTranslated: false,
               parentElement: null,
@@ -875,22 +889,30 @@ export const getPiecesToTranslate = (
               bottomElement: null,
               nodes: [],
             });
-            index++;
+            index++; // 移到下一个片段
           }
-          return;
+          return; // 跳过此节点的进一步处理
         }
       }
+
+      // 处理子节点的辅助函数
       function getAllChilds(childNodes: any) {
         Array.from(childNodes).forEach((_node: any) => {
+          // 记录元素节点
           if (_node.nodeType == 1) {
             lastHTMLElement = _node;
             if (_node.nodeName === 'SELECT' || _node.nodeName === 'DATALIST')
               lastSelectOrDataListElement = _node;
           }
+
+          // 如果不是内联文本元素，则创建新的翻译片段
+          // 这是关键逻辑：非内联文本元素会分割文本流
           if (HTML_TAGS_INLINE_TEXT.indexOf(_node.nodeName) == -1) {
+            // 如果当前片段有内容，结束当前片段
             if (piecesToTranslate[index].nodes.length > 0) {
               currentParagraphSize = 0;
               piecesToTranslate[index].bottomElement = lastHTMLElement;
+              // 创建新片段
               piecesToTranslate.push({
                 isTranslated: false,
                 parentElement: null,
@@ -900,8 +922,10 @@ export const getPiecesToTranslate = (
               });
               index++;
             }
+            // 递归处理这个非内联元素
             getAllNodes(_node, lastHTMLElement, lastSelectOrDataListElement);
 
+            // 处理完后，如果有内容，再次创建新片段
             if (piecesToTranslate[index].nodes.length > 0) {
               currentParagraphSize = 0;
               piecesToTranslate[index].bottomElement = lastHTMLElement;
@@ -915,36 +939,51 @@ export const getPiecesToTranslate = (
               index++;
             }
           } else {
+            // 对于内联文本元素，直接递归处理，不创建新片段
+            // 这样可以保持内联元素的文本在同一翻译单元中
             getAllNodes(_node, lastHTMLElement, lastSelectOrDataListElement);
           }
         });
       }
+
+      // 处理当前节点的所有子节点
       getAllChilds(node.childNodes);
+      // 设置底部元素
       if (!piecesToTranslate[index].bottomElement) {
         piecesToTranslate[index].bottomElement = node;
       }
+
+      // 处理Shadow DOM
       if (node.shadowRoot) {
         getAllChilds(node.shadowRoot.childNodes);
+        // 更新底部元素
         if (!piecesToTranslate[index].bottomElement) {
           piecesToTranslate[index].bottomElement = node;
         }
       }
     } else if (node.nodeType == 3) {
+      // 处理文本节点
+      // 只处理非空文本
       if (node.textContent.trim().length > 0) {
+        // 设置父元素(如果尚未设置)
         if (!piecesToTranslate[index].parentElement) {
+          // 特殊处理SELECT/DATALIST内的OPTION
           if (
             node &&
             node.parentNode &&
             node.parentNode.nodeName === 'OPTION' &&
             lastSelectOrDataListElement
           ) {
+            // 对于OPTION元素中的文本，使用SELECT作为父元素
             piecesToTranslate[index].parentElement =
               lastSelectOrDataListElement;
             piecesToTranslate[index].bottomElement =
               lastSelectOrDataListElement;
             piecesToTranslate[index].topElement = lastSelectOrDataListElement;
           } else {
+            // 查找非内联元素作为父元素
             let temp = node.parentNode;
+            // 向上遍历直到找到非内联元素
             while (
               temp &&
               temp != root &&
@@ -953,18 +992,25 @@ export const getPiecesToTranslate = (
             ) {
               temp = temp.parentNode;
             }
+            // 处理Shadow DOM
             if (temp && temp.nodeType === 11) {
               temp = temp.host;
             }
             piecesToTranslate[index].parentElement = temp;
           }
         }
+
+        // 设置顶部元素(如果尚未设置)
         if (!piecesToTranslate[index].topElement) {
           piecesToTranslate[index].topElement = lastHTMLElement;
         }
+
+        // 如果当前段落过大(>1000字符)，分割为新片段
+        // 这是为了避免翻译单元过大，可能导致翻译质量下降
         if (currentParagraphSize > 1000) {
           currentParagraphSize = 0;
           piecesToTranslate[index].bottomElement = lastHTMLElement;
+          // 创建新片段，继承当前片段的父元素
           const pieceInfo = {
             isTranslated: false,
             parentElement: null,
@@ -976,14 +1022,21 @@ export const getPiecesToTranslate = (
           piecesToTranslate.push(pieceInfo);
           index++;
         }
+
+        // 累加当前段落大小
         currentParagraphSize += node.textContent.length;
+        // 添加文本节点到当前翻译片段
         piecesToTranslate[index].nodes.push(node);
+        // 重置底部元素，等待后续设置
         piecesToTranslate[index].bottomElement = null;
       }
     }
   };
+
+  // 从根节点开始递归处理
   getAllNodes(root);
 
+  // 移除最后一个空片段(如果存在)
   if (
     piecesToTranslate.length > 0 &&
     piecesToTranslate[piecesToTranslate.length - 1].nodes.length == 0
@@ -991,6 +1044,7 @@ export const getPiecesToTranslate = (
     piecesToTranslate.pop();
   }
 
+  // 返回待翻译片段数组
   return piecesToTranslate;
 };
 
@@ -1196,6 +1250,7 @@ export const translatePage = async () => {
     ).reduce((acc, node) => {
       return acc.concat(getPiecesToTranslate(node));
     }, []);
+    console.log('newPiecesToTranslate', newPiecesToTranslate);
     useTranslationStore.getState().setPiecesToTranslate(newPiecesToTranslate);
   } catch (error) {
     console.error('获取需要翻译的片段失败', error);

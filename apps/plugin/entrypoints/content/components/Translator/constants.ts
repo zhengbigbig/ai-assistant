@@ -249,14 +249,14 @@ export const specialRules = [
   {
     name: 'google',
     regex: '^https:\\/\\/www\\.google\\.',
-    selectors: [
-      'h2',
-      'a h3',
-      "div[data-content-feature='1'] > div",
-      "a [aria-level='3']",
-      "a [aria-level='3'] + div",
-      '.Uroaid',
-    ],
+    // selectors: [
+    //   'h2',
+    //   'a h3',
+    //   "div[data-content-feature='1'] > div",
+    //   "a [aria-level='3']",
+    //   "a [aria-level='3'] + div",
+    //   '.Uroaid',
+    // ],
     detectLanguage: true,
   },
   {
@@ -373,11 +373,12 @@ export const BLOCK_ELEMENTS = [
   'P',
   'LI',
   'PRE',
+  'DIV',
 ];
 // 标题元素
-export const HEADING_ELEMENTS = ['h1', 'h2', 'h3'];
+export const HEADING_ELEMENTS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 
-// 内联元素列表
+// 内联元素列表 - 主要添加间距
 export const INLINE_ELEMENTS = [
   'a',
   'abbr',
@@ -413,6 +414,7 @@ export const INLINE_ELEMENTS = [
   'tt',
   'var',
 ];
+// 内联元素列表 - 主要用于文本翻译
 export const HTML_TAGS_INLINE_TEXT = ['#text', 'A', 'ABBR', 'ACRONYM', 'B', 'BDO', 'BIG', 'CITE', 'DFN', 'EM', 'I', 'LABEL', 'Q', 'S', 'SMALL', 'SPAN', 'STRONG', 'SUB', 'SUP', 'U', 'TT', 'VAR']
 
 // 翻译标记属性名
