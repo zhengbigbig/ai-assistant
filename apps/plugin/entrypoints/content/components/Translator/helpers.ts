@@ -318,63 +318,6 @@ function checkAgainstBlacklist(elem: Element, level: number): Element | null {
   return elem;
 }
 
-// 格式化复制节点
-const formatCopiedNode = (
-  copyNode: Element,
-  originalDisplay?: string,
-  pageSpecialConfig?: SpecialRule | null
-): void => {
-  // 添加翻译标记属性
-  copyNode.setAttribute(TRANSLATE_MARK_ATTR, 'copiedNode');
-
-  // 添加原始显示值属性
-  if (originalDisplay) {
-    copyNode.setAttribute(
-      'data-ai-assistant-original-display',
-      originalDisplay
-    );
-  }
-
-  // 设置display为none，先隐藏复制节点
-  if (copyNode instanceof HTMLElement) {
-    copyNode.style.display = 'none';
-  }
-
-  // 添加notranslate类
-  copyNode.classList.add('notranslate');
-
-  const displayMode = useConfigStore.getState().translation.displayMode;
-  const isShowDualLanguage = displayMode === DisplayMode.DUAL;
-  const displayStyle = useConfigStore.getState().translation.displayStyle;
-
-  // 如果显示双语且没有特殊样式配置或特殊样式不是"none"
-  if (
-    isShowDualLanguage &&
-    (!pageSpecialConfig || pageSpecialConfig.style !== 'none')
-  ) {
-    let dualStyle = displayStyle;
-
-    // 如果有特殊样式配置，则使用特殊样式
-    if (pageSpecialConfig && pageSpecialConfig.style) {
-      // 需要映射特殊样式到我们的样式
-      switch (pageSpecialConfig.style) {
-        case 'underline':
-          dualStyle = DisplayStyle.UNDERLINE;
-          break;
-        case 'background':
-          dualStyle = DisplayStyle.BACKGROUND;
-          break;
-        case 'border':
-          dualStyle = DisplayStyle.BORDER;
-          break;
-      }
-    }
-
-    // 应用自定义样式类
-    copyNode.classList.add(`ai-assistant-translation-${dualStyle}`);
-  }
-};
-
 // 为节点添加包装器
 const addWrapperToNode = (node: Node, wrapper: HTMLElement): void => {
   try {
@@ -492,7 +435,6 @@ const checkIsSameLanguage = (lang: string, langs: string[]): boolean => {
 export const getNodesThatNeedToTranslate = async (
   root: Element
 ): Promise<any[]> => {
-  const displayMode = useConfigStore.getState().translation.displayMode;
   const targetLanguage = useConfigStore.getState().translation.targetLanguage;
   const pageSpecialConfig = getPageSpecialConfig();
   const {
@@ -668,15 +610,15 @@ export const getNodesThatNeedToTranslate = async (
         if (nodeText && nodeText.trim().length > 0) {
           try {
             // 检测节点文本语言
-            // const detectedLang = await detectLanguage(nodeText);
+            const detectedLang = await detectLanguage(nodeText);
 
-            // // 如果不是目标语言，则添加到翻译列表
-            // if (
-            //   detectedLang &&
-            //   !checkIsSameLanguage(detectedLang, [targetLanguage])
-            // ) {
-            newAllNodes.push(node);
-            // }
+            // 如果不是目标语言，则添加到翻译列表
+            if (
+              detectedLang &&
+              !checkIsSameLanguage(detectedLang, [targetLanguage])
+            ) {
+              newAllNodes.push(node);
+            }
           } catch (error) {
             console.error('语言检测失败:', error);
             // 如果检测失败，仍然添加节点（宁可错译也不漏译）
@@ -688,11 +630,6 @@ export const getNodesThatNeedToTranslate = async (
     }
   }
 
-  // 如果不显示双语，则直接返回节点列表
-  if (displayMode !== DisplayMode.DUAL) {
-    return allNodes;
-  }
-
   // 若是pdf，则特殊处理
   if (new RegExp(PDF_SELECTORS_CONFIG.regex).test(currentUrlWithoutSearch)) {
     // 为需要翻译的节点创建复制节点，用于双语显示
@@ -700,145 +637,6 @@ export const getNodesThatNeedToTranslate = async (
       const pdfContainer = document.createElement('div');
       pdfContainer.style.display = 'flex';
       addWrapperToNode(node, pdfContainer);
-    }
-  }
-  // 为需要翻译的节点创建复制节点，用于双语显示
-  for (const node of allNodes) {
-    // 检查是否已经有复制节点
-    const previousSibling = node.previousSibling;
-
-    // 如果前一个兄弟节点没有翻译标记，说明还没有复制节点
-    if (
-      !previousSibling ||
-      !(previousSibling instanceof Element) ||
-      !previousSibling.hasAttribute ||
-      !previousSibling.hasAttribute(TRANSLATE_MARK_ATTR)
-    ) {
-      // 创建复制节点
-      const copyNode = node.cloneNode(true) as HTMLElement;
-
-      // 获取原始display值
-      let originalDisplay = '';
-      if (node instanceof HTMLElement) {
-        originalDisplay = node.style.display;
-      }
-
-      if (currentHostname === 'www.reddit.com') {
-        // 为Reddit标题添加换行符
-        if (
-          copyNode.nodeName.toLowerCase() === 'h3' ||
-          copyNode.nodeName.toLowerCase() === 'h1'
-        ) {
-          const br = document.createElement('br');
-          copyNode.appendChild(br);
-        }
-      } else if (
-        pageSpecialConfig &&
-        (pageSpecialConfig.name === 'oldRedditCompact' ||
-          pageSpecialConfig.name === 'oldReddit')
-      ) {
-        // 为旧版Reddit添加换行符
-        if (
-          node.parentNode &&
-          node.parentNode instanceof HTMLElement &&
-          node.parentNode.className.includes('title')
-        ) {
-          const br = document.createElement('br');
-          copyNode.appendChild(br);
-        }
-      } else if (
-        pageSpecialConfig &&
-        pageSpecialConfig.name === 'stackoverflow'
-      ) {
-        // 为Stack Overflow添加换行符
-        if (
-          (node.parentNode &&
-            node.parentNode.nodeName.toLowerCase() === 'h1') ||
-          node.classList.contains('comment-copy')
-        ) {
-          const br = document.createElement('br');
-          copyNode.appendChild(br);
-        }
-      } else if (
-        pageSpecialConfig &&
-        pageSpecialConfig.name === 'ycombinator'
-      ) {
-        if (node.nodeName.toLowerCase() === 'a') {
-          const br = document.createElement('br');
-          copyNode.appendChild(br);
-        }
-      } else if (pageSpecialConfig && pageSpecialConfig.name === 'google') {
-        // 为Google搜索结果设置块级显示
-        if (node.nodeName.toLowerCase() === 'h3') {
-          originalDisplay = 'block';
-        }
-      } else if (pageSpecialConfig && pageSpecialConfig.name === 'discord') {
-        if (node.nodeName.toLowerCase() === 'h3') {
-          const br = document.createElement('br');
-          copyNode.appendChild(br);
-        }
-      } else if (pageSpecialConfig && pageSpecialConfig.selectors) {
-        // check is inline element
-        if (INLINE_ELEMENTS.includes(node.nodeName.toLowerCase())) {
-          // originalDisplay = "block";
-          const br = document.createElement('br');
-          copyNode.appendChild(br);
-        }
-      }
-
-      // 如果是内联元素，添加右边距
-      if (INLINE_ELEMENTS.includes(copyNode.nodeName.toLowerCase())) {
-        // 添加间距
-        if (copyNode instanceof HTMLElement) {
-          copyNode.style.paddingRight = '8px';
-        }
-      } else {
-        // 如果不是列表元素，添加下边距
-        const copiedNodeName = copyNode.nodeName.toLowerCase();
-        if (
-          !['p', 'ul', 'ol', 'li'].includes(copiedNodeName) &&
-          copyNode instanceof HTMLElement
-        ) {
-          copyNode.style.paddingBottom = '8px';
-        }
-      }
-
-      // 如果是nitter，显示为块级
-      if (pageSpecialConfig && pageSpecialConfig.name === 'nitter') {
-        originalDisplay = 'block';
-      }
-
-      // 格式化复制节点
-      formatCopiedNode(copyNode, originalDisplay, pageSpecialConfig);
-      // 特殊处理youtube网站
-      if (currentHostname === 'www.youtube.com') {
-        // special, we need to insert all children of the copied node to node
-        const copiedChildren = copyNode.childNodes;
-        const firstNode = node.childNodes[0];
-        for (let copiedChild of copiedChildren) {
-          // if copiedChildNode is a text node, add span wrapper
-          if (copiedChild.nodeType === Node.TEXT_NODE) {
-            const span = document.createElement('span');
-            span.appendChild(copiedChild);
-            copiedChild = span;
-          }
-          formatCopiedNode(
-            copiedChild as Element,
-            undefined,
-            pageSpecialConfig
-          );
-          node.insertBefore(copiedChild, firstNode);
-        }
-        // new line span node
-        const newLineSpan = document.createElement('span');
-        newLineSpan.innerHTML = '\n';
-        formatCopiedNode(newLineSpan as Element, undefined, pageSpecialConfig);
-        node.insertBefore(newLineSpan, firstNode);
-      } else {
-        if (node.parentNode) {
-          node.parentNode.insertBefore(copyNode, node);
-        }
-      }
     }
   }
   return allNodes;
@@ -1386,29 +1184,65 @@ async function translateNewNodes() {
 function encapsulateTextNode(node: Element) {
   const pageSpecialConfig = getPageSpecialConfig();
   const isShowDualLanguage =
-    useConfigStore.getState().translation.displayMode === 'dual';
+    useConfigStore.getState().translation.displayMode === DisplayMode.DUAL;
 
-  const fontNode = document.createElement('font');
+  // 替换模式：简单替换节点内容，不添加额外样式
+  if (!isShowDualLanguage) {
+    const fontNode = document.createElement('font');
+    fontNode.setAttribute('style', 'vertical-align: inherit;');
+    fontNode.textContent = node.textContent;
+    node.replaceWith(fontNode);
+    return fontNode;
+  }
+
+  // 双语对照模式：保留原节点，添加翻译节点
+  // 判断是否为块级元素
+  const isBlockElement = BLOCK_ELEMENTS.includes(
+    node?.nodeName || ''
+  );
+
+  // 创建翻译容器节点
+  const translatedNodeWrapper = document.createElement('font');
+  // 添加notranslate属性
+  translatedNodeWrapper.setAttribute('notranslate', 'true');
+  // 创建翻译节点
+  const translatedNode = document.createElement('font');
+  // 添加notranslate属性
+  translatedNode.setAttribute('notranslate', 'true');
   let style = 'vertical-align: inherit;';
-  if (
-    isShowDualLanguage &&
-    (!pageSpecialConfig || pageSpecialConfig.style !== 'none')
-  ) {
+
+  // 添加样式（如果配置允许）
+  if (!pageSpecialConfig || pageSpecialConfig.style !== 'none') {
     const displayStyle = useConfigStore.getState().translation.displayStyle;
-    if (displayStyle === 'underline') {
+    if (displayStyle === DisplayStyle.UNDERLINE) {
       style += 'border-bottom: 2px solid #72ECE9;';
-    } else if (displayStyle === 'background') {
+    } else if (displayStyle === DisplayStyle.BACKGROUND) {
       style += 'background-color: #EAD0B3;padding: 3px 0;';
     } else {
       style += 'border: 1px solid #72ECE9;';
     }
   }
-  fontNode.setAttribute('style', style);
-  fontNode.textContent = node.textContent;
+  translatedNode.setAttribute('style', style);
+  translatedNode.textContent = node.textContent;
+  console.log('isBlockElement', isBlockElement, node, node.nodeName);
+  // 块级元素：添加换行符后插入翻译节点
+  if (isBlockElement) {
+    const brElement = document.createElement('br');
+    translatedNodeWrapper.appendChild(brElement);
+    translatedNodeWrapper.appendChild(translatedNode);
+    node.appendChild(translatedNodeWrapper);
+  }
+  // 行内元素：添加两个空格后插入翻译节点
+  else {
+    // 创建内容为两空格的font节点
+    const spacer = document.createElement('font');
+    spacer.innerHTML = '&nbsp;&nbsp;';
+    translatedNodeWrapper.appendChild(spacer);
+    translatedNodeWrapper.appendChild(translatedNode);
+    node.appendChild(translatedNodeWrapper);
+  }
 
-  node.replaceWith(fontNode);
-
-  return fontNode;
+  return translatedNode;
 }
 
 // 处理翻译文本中的关键词，如果有自定义替换值则替换它。
@@ -1576,9 +1410,7 @@ async function translateDynamically() {
       if (piecesToTranslateNow.length > 0) {
         // 为待翻译节点加上loading图标
         piecesToTranslateNow.forEach((ptt) => {
-          ptt.nodes.forEach((node) => {
-            addLoadingIconToNode(node as Element);
-          });
+          addLoadingIconToNode(ptt.parentElement as Element);
         });
         const results = await backgroundTranslateHTML(
           piecesToTranslateNow.map((ptt) =>
@@ -1591,7 +1423,7 @@ async function translateDynamically() {
           useTranslationStore.getState().pageLanguageState === 'translated' &&
           currentFooCount === useTranslationStore.getState().fooCount
         ) {
-          await translateResults(piecesToTranslateNow, results);
+          // await translateResults(piecesToTranslateNow, results);
         }
       }
 
