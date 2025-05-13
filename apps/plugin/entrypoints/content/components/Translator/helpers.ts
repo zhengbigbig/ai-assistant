@@ -646,7 +646,6 @@ export const getNodesThatNeedToTranslate = async (
   // 是否双语对照，若是，则复制其节点到页面底部
   if (useConfigStore.getState().translation.displayMode === DisplayMode.DUAL) {
     const copiedNodes = allNodes.map((node) => [node, copyNodeToBottom(node)]);
-    console.log('copiedNodes', copiedNodes);
     return copiedNodes;
   }
   return allNodes.map((node) => [node, null]);
@@ -1112,7 +1111,7 @@ export const removeLoadingIconFromNode = (node: Element) => {
 
 // 翻译页面
 export const translatePage = async () => {
-  console.log('translatePage');
+  console.info('translatePage');
   const targetLanguage = useConfigStore.getState().translation.targetLanguage;
   // 增加计数器，用于追踪翻译状态的变化
   useTranslationStore.getState().incrementFooCount();
@@ -1125,7 +1124,6 @@ export const translatePage = async () => {
     ).reduce((acc, [node, copiedNode]) => {
       return acc.concat(getPiecesToTranslate(copiedNode ?? node, node));
     }, []);
-    console.log('newPiecesToTranslate', newPiecesToTranslate);
     useTranslationStore.getState().setPiecesToTranslate(newPiecesToTranslate);
   } catch (error) {
     console.error('获取需要翻译的片段失败', error);
@@ -1339,7 +1337,6 @@ async function translateResults(
           translated || '',
           newNode.textContent || ''
         )) as string;
-        console.log('n', piecesToTranslateNow[i], newNode, result);
         newNode.textContent = result;
         // 替换原节点
         nodes[j].textContent = result;
@@ -1478,9 +1475,6 @@ async function backgroundTranslateHTML(sourceArray2d: string[][]) {
   const serviceName = useConfigStore.getState().translation.translationService;
   const sourceLanguage = useTranslationStore.getState().originalTabLanguage;
   const targetLanguage = useConfigStore.getState().translation.targetLanguage;
-  console.log('serviceName', serviceName);
-  console.log('sourceLanguage', sourceLanguage);
-  console.log('targetLanguage', targetLanguage);
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(
       {
