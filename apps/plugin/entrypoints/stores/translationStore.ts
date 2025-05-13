@@ -8,9 +8,8 @@ import syncStorageAdapter from './storage';
 export interface PieceToTranslate {
   isTranslated: boolean;
   parentElement: Element | null;
-  topElement: Element | null;
-  bottomElement: Element | null;
   nodes: Node[];
+  originalElement: Element | null;
 }
 
 // 定义需要翻译的属性接口

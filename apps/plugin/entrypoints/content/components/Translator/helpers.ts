@@ -11,7 +11,6 @@ import {
   HTML_TAGS_INLINE_IGNORE,
   HTML_TAGS_INLINE_TEXT,
   HTML_TAGS_NO_TRANSLATE,
-  INLINE_ELEMENTS,
   PDF_SELECTORS_CONFIG,
   specialRules,
   TRANSLATE_MARK_ATTR,
@@ -377,32 +376,6 @@ export const restorePage = () => {
   }
 };
 
-// 显示所有复制的节点（用于双语显示）
-export const showCopiedNodes = (): void => {
-  const copiedNodes = document.querySelectorAll(
-    `[${TRANSLATE_MARK_ATTR}="copiedNode"]`
-  );
-
-  for (const node of copiedNodes) {
-    if (
-      node instanceof HTMLElement &&
-      node.style &&
-      node.style.display === 'none'
-    ) {
-      // 恢复原始显示
-      const originalDisplay = node.getAttribute(
-        'data-ai-assistant-original-display'
-      );
-      if (originalDisplay) {
-        node.style.display = originalDisplay;
-      } else {
-        // 删除display属性
-        node.style.removeProperty('display');
-      }
-    }
-  }
-};
-
 // checkIsSameLanguage
 const checkIsSameLanguage = (lang: string, langs: string[]): boolean => {
   // 修正语言代码
@@ -431,6 +404,33 @@ const checkIsSameLanguage = (lang: string, langs: string[]): boolean => {
   }
   return false;
 };
+
+// 递归判断其子孙节点，是否都是行内元素且行内元素均只包含文本节点
+const onlyContainsTextNodes = (element: Node): boolean => {
+  // 检查当前节点的子节点
+  for (const child of Array.from(element.childNodes)) {
+    // 如果是文本节点，则继续检查
+    if (child.nodeType === Node.TEXT_NODE) {
+      continue;
+    }
+
+    // 如果是元素节点但不是行内元素，返回false
+    if (
+      child.nodeType === Node.ELEMENT_NODE &&
+      !HTML_TAGS_INLINE_TEXT.includes(child.nodeName)
+    ) {
+      return false;
+    }
+
+    // 递归检查子节点
+    if (!onlyContainsTextNodes(child)) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 // 获取需要翻译的节点
 export const getNodesThatNeedToTranslate = async (
   root: Element
@@ -539,44 +539,48 @@ export const getNodesThatNeedToTranslate = async (
     }
     // 遍历每个容器
     for (const container of containers) {
+      // 记录已经接受的节点
+      const acceptedNodes = new Set();
       // 创建TreeWalker，只关注元素节点
       const treeWalker = document.createTreeWalker(
         container,
         NodeFilter.SHOW_ELEMENT,
         {
           acceptNode: (node) => {
+            // 检查是否是已接受节点的子节点
+            let parent = node.parentNode;
+            while (parent) {
+              if (acceptedNodes.has(parent)) {
+                return NodeFilter.FILTER_REJECT; // 拒绝已接受节点的子节点
+              }
+              parent = parent.parentNode;
+            }
             // 无效节点直接拒绝
             if (!isValidNode(node as Element)) {
               // 拒绝该节点及其所有子节点，完全跳过这个分支
               return NodeFilter.FILTER_REJECT;
             }
-
-            // 当前node非块级元素，则跳过该节点
-            if (!blockElementsList.includes(node.nodeName)) {
-              return NodeFilter.FILTER_SKIP;
-            }
-
-            // 检查是否为叶子节点（没有元素子节点）
-            let isLeafNode = true;
-            for (let i = 0; i < node.childNodes.length; i++) {
-              const nodeName = node.childNodes[i].nodeName;
-              // 如果有块级子节点，则不是叶子节点
-              if (blockElementsList.includes(nodeName)) {
-                isLeafNode = false;
-                break;
-              }
-            }
-            // 如果是块级元素且是有文本内容的叶子节点，则接受
-            if (blockElementsList.includes(node.nodeName) && isLeafNode) {
+            // 块级节点，但子节点是文本，接受
+            if (
+              blockElementsList.includes(node.nodeName) &&
+              Array.from(node.childNodes).every(
+                (child) => child.nodeType === Node.TEXT_NODE
+              )
+            ) {
+              acceptedNodes.add(node);
               return NodeFilter.FILTER_ACCEPT;
             }
 
-            // 如果不是块级元素但是有文本内容的叶子节点，也接受
-            if (isLeafNode) {
+            // 当前节点非块级节点，递归判断其子孙节点，是否都是行内元素且行内元素均只包含文本节点
+            if (
+              !blockElementsList.includes(node.nodeName) &&
+              onlyContainsTextNodes(node)
+            ) {
+              acceptedNodes.add(node);
               return NodeFilter.FILTER_ACCEPT;
             }
 
-            // 对于有子元素的节点，跳过该节点本身，但继续处理其子节点
+            // 其他节点均跳过，继续递归
             return NodeFilter.FILTER_SKIP;
           },
         }
@@ -639,27 +643,124 @@ export const getNodesThatNeedToTranslate = async (
       addWrapperToNode(node, pdfContainer);
     }
   }
-  return allNodes;
+  // 是否双语对照，若是，则复制其节点到页面底部
+  if (useConfigStore.getState().translation.displayMode === DisplayMode.DUAL) {
+    const copiedNodes = allNodes.map((node) => [node, copyNodeToBottom(node)]);
+    console.log('copiedNodes', copiedNodes);
+    return copiedNodes;
+  }
+  return allNodes.map((node) => [node, null]);
+};
+
+export const copyNodeToBottom = (node: Element) => {
+  /**
+   * 复制节点下所有子节点，并插入到原节点最下方
+   * 1. 双语对照时，判断原节点是否是块级元素，若是块级元素插入格式为：
+   *  <原节点>
+   *    <原节点子节点>...</原节点子节点>
+   *    <font class添加notranslate container 增加一些边距样式>
+   *      <br/>
+   *      <font class="notranslate" ...双语对照样式>复制节点子节点</font>
+   *    </font>
+   *  </原节点>
+   * 若是行内元素
+   *  <原节点>
+   *    <原节点子节点>...</原节点子节点>
+   *    <font class添加notranslate container 增加一些边距样式>
+   *      <font class="notranslate">&nbsp;&nbsp;</font>
+   *      <font class="notranslate" ...双语对照样式>复制节点子节点</font>
+   *    </font>
+   *  </原节点>
+   * 2. 非双语对照时，直接返回原节点
+   */
+
+  // 判断是否为块级元素：通过标签判断+通过实际样式判断
+  const isBlockElement =
+    BLOCK_ELEMENTS.includes(node.nodeName) ||
+    (node as HTMLElement).style.display.includes('block') ||
+    (node as HTMLElement).style.display.includes('flex') ||
+    (node as HTMLElement).style.display.includes('grid') ||
+    (node as HTMLElement).style.display.includes('table') ||
+    (node as HTMLElement).style.display.includes('flow-root');
+
+  const displayStyle = useConfigStore.getState().translation.displayStyle;
+
+  // 创建翻译容器节点 - 主要是最外层包裹
+  const translatedNodeWrapper = document.createElement('font');
+  translatedNodeWrapper.classList.add('ai-assistant-translated-wrapper');
+
+  // 标记副本节点为已复制节点，以便后续恢复页面时能够识别和移除
+  translatedNodeWrapper.setAttribute(TRANSLATE_MARK_ATTR, 'copiedNode');
+
+  // 创建翻译节点容器 - 主要控制结构
+  const translatedNodeContainer = document.createElement('div');
+  translatedNodeContainer.classList.add('ai-assistant-translated-container');
+  // underline: 下划线，margin: 8px 0;
+  // background: 背景色，margin: 8px 0;
+  // border: 边框,margin: 8px 0;padding: 6px;border: 1px solid #72ECE9;
+  // 是否
+  if (isBlockElement) {
+    translatedNodeContainer.style.margin = '8px 0';
+    translatedNodeContainer.style.display = 'inline-block';
+  }
+  if (displayStyle === DisplayStyle.BORDER) {
+    translatedNodeContainer.style.padding = '6px';
+    translatedNodeContainer.style.border = '1px dashed #72ECE9';
+  }
+
+  // 创建翻译节点
+  const translatedNode = document.createElement('font');
+  translatedNode.classList.add('ai-assistant-translated');
+  if (displayStyle === DisplayStyle.BACKGROUND) {
+    translatedNode.style.backgroundColor = '#EAD0B3';
+  }
+
+  translatedNode.innerHTML = node.innerHTML;
+  translatedNodeContainer.appendChild(translatedNode);
+
+  // 根据节点类型决定如何添加翻译内容
+  if (isBlockElement) {
+    // 块级元素：添加换行符后插入翻译节点
+    const brElement = document.createElement('br');
+    translatedNodeWrapper.appendChild(brElement);
+    translatedNodeWrapper.appendChild(translatedNodeContainer);
+  } else {
+    // 行内元素：添加两个空格后插入翻译节点
+    const spacer = document.createElement('font');
+    spacer.innerHTML = '&nbsp;&nbsp;';
+    spacer.setAttribute('notranslate', 'true');
+    translatedNodeWrapper.appendChild(spacer);
+    translatedNodeWrapper.appendChild(translatedNodeContainer);
+  }
+
+  // 初始时宽度缩小，不显示
+  if (translatedNodeWrapper instanceof HTMLElement) {
+    translatedNodeWrapper.style.display = 'none';
+  }
+  // 将复制节点插入到原节点所有子节点最后
+  node.appendChild(translatedNodeWrapper);
+
+  // 返回复制的节点，后续翻译结果将更新到这个节点中
+  return translatedNodeWrapper;
 };
 
 // 获取需要翻译的节点
 export const getPiecesToTranslate = (
-  root = document.body
+  root = document.body,
+  originalNode = null
 ): {
   isTranslated: boolean;
   parentElement: Element | null;
-  topElement: Element | null;
-  bottomElement: Element | null;
   nodes: Element[];
+  originalElement: Element | null;
 }[] => {
   // 初始化存储翻译片段的数组，每个片段包含多个节点和相关信息
   const piecesToTranslate: any[] = [
     {
       isTranslated: false, // 标记该片段是否已被翻译
       parentElement: null, // 所有节点的共同父元素
-      topElement: null, // 第一个节点的顶部元素
-      bottomElement: null, // 最后一个节点的底部元素
       nodes: [], // 实际需要翻译的节点数组
+      originalElement: originalNode, // 添加根元素，即传入的node
     },
   ];
   let index = 0; // 当前处理的片段索引
@@ -695,14 +796,12 @@ export const getPiecesToTranslate = (
           // 如果当前片段已有节点，创建新片段
           if (piecesToTranslate[index].nodes.length > 0) {
             currentParagraphSize = 0;
-            piecesToTranslate[index].bottomElement = lastHTMLElement;
             // 添加新的空白片段
             piecesToTranslate.push({
               isTranslated: false,
               parentElement: null,
-              topElement: null,
-              bottomElement: null,
               nodes: [],
+              originalElement: root, // 为新片段添加根元素
             });
             index++; // 移到下一个片段
           }
@@ -726,14 +825,12 @@ export const getPiecesToTranslate = (
             // 如果当前片段有内容，结束当前片段
             if (piecesToTranslate[index].nodes.length > 0) {
               currentParagraphSize = 0;
-              piecesToTranslate[index].bottomElement = lastHTMLElement;
               // 创建新片段
               piecesToTranslate.push({
                 isTranslated: false,
                 parentElement: null,
-                topElement: null,
-                bottomElement: null,
                 nodes: [],
+                originalElement: root, // 为新片段添加根元素
               });
               index++;
             }
@@ -743,13 +840,11 @@ export const getPiecesToTranslate = (
             // 处理完后，如果有内容，再次创建新片段
             if (piecesToTranslate[index].nodes.length > 0) {
               currentParagraphSize = 0;
-              piecesToTranslate[index].bottomElement = lastHTMLElement;
               piecesToTranslate.push({
                 isTranslated: false,
                 parentElement: null,
-                topElement: null,
-                bottomElement: null,
                 nodes: [],
+                originalElement: root, // 为新片段添加根元素
               });
               index++;
             }
@@ -763,18 +858,10 @@ export const getPiecesToTranslate = (
 
       // 处理当前节点的所有子节点
       getAllChilds(node.childNodes);
-      // 设置底部元素
-      if (!piecesToTranslate[index].bottomElement) {
-        piecesToTranslate[index].bottomElement = node;
-      }
 
       // 处理Shadow DOM
       if (node.shadowRoot) {
         getAllChilds(node.shadowRoot.childNodes);
-        // 更新底部元素
-        if (!piecesToTranslate[index].bottomElement) {
-          piecesToTranslate[index].bottomElement = node;
-        }
       }
     } else if (node.nodeType == 3) {
       // 处理文本节点
@@ -792,9 +879,6 @@ export const getPiecesToTranslate = (
             // 对于OPTION元素中的文本，使用SELECT作为父元素
             piecesToTranslate[index].parentElement =
               lastSelectOrDataListElement;
-            piecesToTranslate[index].bottomElement =
-              lastSelectOrDataListElement;
-            piecesToTranslate[index].topElement = lastSelectOrDataListElement;
           } else {
             // 查找非内联元素作为父元素
             let temp = node.parentNode;
@@ -815,23 +899,16 @@ export const getPiecesToTranslate = (
           }
         }
 
-        // 设置顶部元素(如果尚未设置)
-        if (!piecesToTranslate[index].topElement) {
-          piecesToTranslate[index].topElement = lastHTMLElement;
-        }
-
         // 如果当前段落过大(>1000字符)，分割为新片段
         // 这是为了避免翻译单元过大，可能导致翻译质量下降
         if (currentParagraphSize > 1000) {
           currentParagraphSize = 0;
-          piecesToTranslate[index].bottomElement = lastHTMLElement;
-          // 创建新片段，继承当前片段的父元素
+          // The important part - save the parent element for the next piece
           const pieceInfo = {
             isTranslated: false,
             parentElement: null,
-            topElement: lastHTMLElement,
-            bottomElement: null,
             nodes: [],
+            originalElement: root, // 为新片段添加根元素
           };
           pieceInfo.parentElement = piecesToTranslate[index].parentElement;
           piecesToTranslate.push(pieceInfo);
@@ -842,8 +919,6 @@ export const getPiecesToTranslate = (
         currentParagraphSize += node.textContent.length;
         // 添加文本节点到当前翻译片段
         piecesToTranslate[index].nodes.push(node);
-        // 重置底部元素，等待后续设置
-        piecesToTranslate[index].bottomElement = null;
       }
     }
   };
@@ -952,50 +1027,40 @@ export const getAttributesToTranslate = (root = document.body): any[] => {
   return attributesToTranslate;
 };
 
-// element判断
-export const isInScreen = (element: any) => {
-  const rect = element.getBoundingClientRect();
+// 修改isInScreen函数以支持处理隐藏元素
+export const isInScreen = (element: Element | null): boolean => {
+  if (!element) return false;
+
+  // 检查元素是否为被标记为copiedNode
   if (
+    element.getAttribute &&
+    element.getAttribute(TRANSLATE_MARK_ATTR) === 'copiedNode'
+  ) {
+    // 对于复制节点，检查其父元素是否在屏幕中
+    return element.parentElement ? isInScreen(element.parentElement) : false;
+  }
+
+  // 检查元素是否显示
+  const computedStyle = window.getComputedStyle(element);
+  if (computedStyle.display === 'none') {
+    // 对于隐藏元素，检查其父元素是否在屏幕中
+    return element.parentElement ? isInScreen(element.parentElement) : false;
+  }
+
+  // 获取元素位置
+  const rect = element.getBoundingClientRect();
+
+  // 判断元素是否在视口中
+  return (
     (rect.top > 0 && rect.top <= window.innerHeight) ||
     (rect.bottom > 0 && rect.bottom <= window.innerHeight)
-  ) {
-    return true;
-  }
-  return false;
-};
-
-export const topIsInScreen = (element: any) => {
-  if (!element) {
-    // debugger;
-    return false;
-  }
-  const rect = element.getBoundingClientRect();
-  if (rect.top > 0 && rect.top <= window.innerHeight) {
-    return true;
-  }
-  return false;
-};
-
-export const bottomIsInScreen = (element: any) => {
-  if (!element) {
-    return false;
-  }
-  const rect = element.getBoundingClientRect();
-  if (rect.bottom > 0 && rect.bottom <= window.innerHeight) {
-    return true;
-  }
-  return false;
+  );
 };
 
 // 添加loading图标到待翻译节点
 export const addLoadingIconToNode = (node: Element) => {
-  // 检查节点是否已有loading图标
-  if (
-    node.nextSibling &&
-    (node.nextSibling as Element).classList?.contains(
-      'ai-assistant-loading-icon'
-    )
-  ) {
+  // 检查其内部节点是否存在loading图标
+  if (node.querySelector('.ai-assistant-loading-icon')) {
     return;
   }
 
@@ -1032,22 +1097,16 @@ export const addLoadingIconToNode = (node: Element) => {
   `;
   document.head.appendChild(style);
 
-  // 将loading图标插入到节点后面，视觉上看起来就像是在节点右侧
-  if (node.parentNode) {
-    node.parentNode.insertBefore(loadingIcon, node.nextSibling);
-  }
+  // 将loading图标插入到其最后子节点后
+  node.appendChild(loadingIcon);
 };
 
 // 移除节点的loading图标
 export const removeLoadingIconFromNode = (node: Element) => {
-  // 获取节点后面的loading图标并移除
-  if (
-    node.nextSibling &&
-    (node.nextSibling as Element).classList?.contains(
-      'ai-assistant-loading-icon'
-    )
-  ) {
-    node.parentNode?.removeChild(node.nextSibling);
+  // 获取节点子节点内loading图标并移除
+  const loadingIcon = node.querySelector('.ai-assistant-loading-icon');
+  if (loadingIcon) {
+    node.removeChild(loadingIcon);
   }
 };
 
@@ -1063,9 +1122,10 @@ export const translatePage = async () => {
     // 获取需要翻译的节点，并从中提取需要翻译的文本片段
     const newPiecesToTranslate = (
       await getNodesThatNeedToTranslate(document.body)
-    ).reduce((acc, node) => {
-      return acc.concat(getPiecesToTranslate(node));
+    ).reduce((acc, [node, copiedNode]) => {
+      return acc.concat(getPiecesToTranslate(copiedNode ?? node, node));
     }, []);
+    console.log('newPiecesToTranslate', newPiecesToTranslate);
     useTranslationStore.getState().setPiecesToTranslate(newPiecesToTranslate);
   } catch (error) {
     console.error('获取需要翻译的片段失败', error);
@@ -1145,8 +1205,8 @@ async function translateNewNodes() {
 
       const newPiecesToTranslate = (
         await getNodesThatNeedToTranslate(nn)
-      ).reduce((acc, node) => {
-        return acc.concat(getPiecesToTranslate(node));
+      ).reduce((acc, [node, copiedNode]) => {
+        return acc.concat(getPiecesToTranslate(copiedNode ?? node, node));
       }, []);
 
       for (const i in newPiecesToTranslate) {
@@ -1178,71 +1238,6 @@ async function translateNewNodes() {
   } finally {
     useTranslationStore.getState().clearNodes();
   }
-}
-
-// 包裹文本节点
-function encapsulateTextNode(node: Element) {
-  const pageSpecialConfig = getPageSpecialConfig();
-  const isShowDualLanguage =
-    useConfigStore.getState().translation.displayMode === DisplayMode.DUAL;
-
-  // 替换模式：简单替换节点内容，不添加额外样式
-  if (!isShowDualLanguage) {
-    const fontNode = document.createElement('font');
-    fontNode.setAttribute('style', 'vertical-align: inherit;');
-    fontNode.textContent = node.textContent;
-    node.replaceWith(fontNode);
-    return fontNode;
-  }
-
-  // 双语对照模式：保留原节点，添加翻译节点
-  // 判断是否为块级元素
-  const isBlockElement = BLOCK_ELEMENTS.includes(
-    node?.nodeName || ''
-  );
-
-  // 创建翻译容器节点
-  const translatedNodeWrapper = document.createElement('font');
-  // 添加notranslate属性
-  translatedNodeWrapper.setAttribute('notranslate', 'true');
-  // 创建翻译节点
-  const translatedNode = document.createElement('font');
-  // 添加notranslate属性
-  translatedNode.setAttribute('notranslate', 'true');
-  let style = 'vertical-align: inherit;';
-
-  // 添加样式（如果配置允许）
-  if (!pageSpecialConfig || pageSpecialConfig.style !== 'none') {
-    const displayStyle = useConfigStore.getState().translation.displayStyle;
-    if (displayStyle === DisplayStyle.UNDERLINE) {
-      style += 'border-bottom: 2px solid #72ECE9;';
-    } else if (displayStyle === DisplayStyle.BACKGROUND) {
-      style += 'background-color: #EAD0B3;padding: 3px 0;';
-    } else {
-      style += 'border: 1px solid #72ECE9;';
-    }
-  }
-  translatedNode.setAttribute('style', style);
-  translatedNode.textContent = node.textContent;
-  console.log('isBlockElement', isBlockElement, node, node.nodeName);
-  // 块级元素：添加换行符后插入翻译节点
-  if (isBlockElement) {
-    const brElement = document.createElement('br');
-    translatedNodeWrapper.appendChild(brElement);
-    translatedNodeWrapper.appendChild(translatedNode);
-    node.appendChild(translatedNodeWrapper);
-  }
-  // 行内元素：添加两个空格后插入翻译节点
-  else {
-    // 创建内容为两空格的font节点
-    const spacer = document.createElement('font');
-    spacer.innerHTML = '&nbsp;&nbsp;';
-    translatedNodeWrapper.appendChild(spacer);
-    translatedNodeWrapper.appendChild(translatedNode);
-    node.appendChild(translatedNodeWrapper);
-  }
-
-  return translatedNode;
 }
 
 // 处理翻译文本中的关键词，如果有自定义替换值则替换它。
@@ -1323,28 +1318,49 @@ async function translateResults(
   results: any
 ) {
   for (const i in piecesToTranslateNow) {
+    // 移除loading图标
+    removeLoadingIconFromNode(
+      piecesToTranslateNow[i].originalElement as Element
+    );
     for (const j in piecesToTranslateNow[i].nodes) {
       if (results[i][j]) {
         const nodes = piecesToTranslateNow[i].nodes;
         const translated = results[i][j] + ' ';
-
-        // 移除loading图标
-        removeLoadingIconFromNode(nodes[j] as Element);
-
-        // 调用encapsulateTextNode替换节点并获取新节点
-        const newNode = encapsulateTextNode(nodes[j] as Element);
+        // 单纯复制节点
+        const newNode = nodes[j] as Element;
 
         // 不再尝试修改nodes[j]，而是直接使用返回的新节点
         useTranslationStore.getState().addNodeToRestore({
           node: newNode,
-          original: newNode.textContent || '',
+          original: nodes[j]?.textContent || '',
         });
 
         const result = (await handleCustomWords(
           translated || '',
           newNode.textContent || ''
         )) as string;
+        console.log('n', piecesToTranslateNow[i], newNode, result);
         newNode.textContent = result;
+        // 替换原节点
+        nodes[j].textContent = result;
+
+        // 如果是双语对照，恢复复制节点显示
+        if (
+          useConfigStore.getState().translation.displayMode === DisplayMode.DUAL
+        ) {
+          const originalElement = piecesToTranslateNow[i].originalElement;
+          if (originalElement) {
+            const copiedNode = originalElement.querySelector(
+              `[${TRANSLATE_MARK_ATTR}="copiedNode"]`
+            );
+            if (
+              copiedNode instanceof HTMLElement &&
+              copiedNode.style.display === 'none'
+            ) {
+              copiedNode.style.removeProperty('display');
+            }
+          }
+        }
       }
     }
   }
@@ -1378,13 +1394,10 @@ async function translateDynamically() {
       const currentFooCount = useTranslationStore.getState().fooCount;
 
       const piecesToTranslateNow: PieceToTranslate[] = [];
-
       piecesToTranslate.forEach((ptt, index) => {
+        // 使用rootElement来判断是否在视图中
         if (!ptt.isTranslated) {
-          if (
-            bottomIsInScreen(ptt.topElement) ||
-            topIsInScreen(ptt.bottomElement)
-          ) {
+          if (isInScreen(ptt.originalElement)) {
             // 不直接修改原对象，而是通过store更新
             useTranslationStore.getState().updatePieceTranslated(index, true);
             piecesToTranslateNow.push(ptt);
@@ -1410,8 +1423,10 @@ async function translateDynamically() {
       if (piecesToTranslateNow.length > 0) {
         // 为待翻译节点加上loading图标
         piecesToTranslateNow.forEach((ptt) => {
-          addLoadingIconToNode(ptt.parentElement as Element);
+          // 给originalElement加上loading图标
+          addLoadingIconToNode(ptt.originalElement as Element);
         });
+
         const results = await backgroundTranslateHTML(
           piecesToTranslateNow.map((ptt) =>
             ptt.nodes.map((node) => {
@@ -1419,16 +1434,16 @@ async function translateDynamically() {
             })
           )
         );
+
         if (
           useTranslationStore.getState().pageLanguageState === 'translated' &&
           currentFooCount === useTranslationStore.getState().fooCount
         ) {
-          // await translateResults(piecesToTranslateNow, results);
+          await translateResults(piecesToTranslateNow, results);
         }
       }
 
       if (attributesToTranslateNow.length > 0) {
-        console.log('attributesToTranslateNow', attributesToTranslateNow);
         backgroundTranslateText(
           attributesToTranslateNow.map((ati) => ati.original)
         ).then((results) => {
@@ -1460,13 +1475,19 @@ function translateAttributes(
 
 // 翻译HTML
 async function backgroundTranslateHTML(sourceArray2d: string[][]) {
+  const serviceName = useConfigStore.getState().translation.translationService;
+  const sourceLanguage = useTranslationStore.getState().originalTabLanguage;
+  const targetLanguage = useConfigStore.getState().translation.targetLanguage;
+  console.log('serviceName', serviceName);
+  console.log('sourceLanguage', sourceLanguage);
+  console.log('targetLanguage', targetLanguage);
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(
       {
         action: 'translateHTML',
-        serviceName: useConfigStore.getState().translation.translationService,
-        sourceLanguage: useTranslationStore.getState().originalTabLanguage,
-        targetLanguage: useConfigStore.getState().translation.targetLanguage,
+        serviceName,
+        sourceLanguage,
+        targetLanguage,
         sourceArray2d,
       },
       (response) => {
@@ -1574,24 +1595,24 @@ function handleHitKeywords(value: string, mode: boolean) {
 export function detectPageLanguage() {
   return new Promise((resolve, reject) => {
     // 首先尝试从HTML元素的lang属性获取
-    if (document.documentElement && document.documentElement.lang) {
-      resolve(document.documentElement.lang);
+    // if (document.documentElement && document.documentElement.lang) {
+    //   resolve(document.documentElement.lang);
+    // } else {
+    // 如果无法从HTML元素获取，则使用语言检测API
+    if (document.body && document.body.innerText) {
+      chrome.runtime.sendMessage(
+        {
+          action: 'detectLanguage',
+          text: document.body.innerText,
+        },
+        (response) => {
+          resolve(response);
+        }
+      );
     } else {
-      // 如果无法从HTML元素获取，则使用语言检测API
-      if (document.body && document.body.innerText) {
-        chrome.runtime.sendMessage(
-          {
-            action: 'detectLanguage',
-            text: document.body.innerText,
-          },
-          (response) => {
-            resolve(response);
-          }
-        );
-      } else {
-        // 如果没有文本内容，则无法检测
-        resolve(undefined);
-      }
+      // 如果没有文本内容，则无法检测
+      resolve(undefined);
     }
+    // }
   });
 }

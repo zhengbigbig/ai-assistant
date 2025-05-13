@@ -308,7 +308,7 @@ export const useConfigStore = create<ConfigState>()(
         targetLanguage: TargetLanguage.ZH_CN,
         displayMode: DisplayMode.DUAL,
         translationService: 'google',
-        displayStyle: DisplayStyle.UNDERLINE,
+        displayStyle: DisplayStyle.BACKGROUND,
         forbiddenWebsites: [],
         enableVideoSubtitleTranslation: true,
         enableInputTranslation: false,

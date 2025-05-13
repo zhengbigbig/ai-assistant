@@ -374,45 +374,10 @@ export const BLOCK_ELEMENTS = [
   'P',
   'LI',
   'PRE',
-  'DIV'
+  'DIV',
+  'A'
 ];
 
-// 内联元素列表 - 主要添加间距
-export const INLINE_ELEMENTS = [
-  'a',
-  'abbr',
-  'acronym',
-  'b',
-  'bdo',
-  'big',
-  'br',
-  'button',
-  'cite',
-  'code',
-  'dfn',
-  'em',
-  'i',
-  'img',
-  'input',
-  'kbd',
-  'label',
-  'map',
-  'object',
-  'output',
-  'q',
-  'samp',
-  'script',
-  'select',
-  'small',
-  'span',
-  'strong',
-  'sub',
-  'sup',
-  'textarea',
-  'time',
-  'tt',
-  'var',
-];
 // 内联元素列表 - 主要用于文本翻译
 export const HTML_TAGS_INLINE_TEXT = ['#text', 'A', 'ABBR', 'ACRONYM', 'B', 'BDO', 'BIG', 'CITE', 'DFN', 'EM', 'I', 'LABEL', 'Q', 'S', 'SMALL', 'SPAN', 'STRONG', 'SUB', 'SUP', 'U', 'TT', 'VAR']
 

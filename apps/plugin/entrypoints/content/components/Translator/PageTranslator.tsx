@@ -86,6 +86,7 @@ const PageTranslator: React.FC = () => {
             if (result === 'und' || !result) {
               result = await detectPageLanguage();
             }
+            console.log('result', result);
             result = result || 'und';
 
             // 如果结果仍为"und"
