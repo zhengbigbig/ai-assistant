@@ -48,8 +48,8 @@ const TextSelectionManager: React.FC = () => {
       if (text && text.trim().length > 0) {
         // 获取选区的位置信息
         if (selection && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          const rect = range.getBoundingClientRect();
+          const range = selection?.getRangeAt?.(0);
+          const rect = range?.getBoundingClientRect?.();
 
           // 为工具栏设置位置 - 使用鼠标位置
           // TextSelectionToolbar内部会自行处理位置调整

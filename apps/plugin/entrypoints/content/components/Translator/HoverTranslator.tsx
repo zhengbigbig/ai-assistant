@@ -7,14 +7,14 @@ import { TranslationHotkey } from '../../../constants/config';
 const { Text } = Typography;
 
 // 悬停翻译卡片容器
-const HoverCard = styled(Card)<{ visible: boolean }>`
+const HoverCard = styled(Card)<{ $visible: boolean }>`
   position: fixed;
   z-index: 99999;
   max-width: 400px;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   padding: 0;
-  display: ${props => (props.visible ? 'block' : 'none')};
+  display: ${props => (props.$visible ? 'block' : 'none')};
 `;
 
 // 原文样式
@@ -161,10 +161,10 @@ const HoverTranslator: React.FC = () => {
 
   return (
     <HoverCard
-      visible={visible}
+      $visible={visible}
       style={{ left: position.x, top: position.y }}
       size="small"
-      bordered
+      variant="outlined"
     >
       <Spin spinning={loading} size="small">
         <OriginalText>{originalText}</OriginalText>
