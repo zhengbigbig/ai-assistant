@@ -159,7 +159,8 @@ const TextSelectionToolbar: React.FC<TextSelectionToolbarProps> = ({
     const timer = setTimeout(() => {
       // 获取选区宽高
       const selection = window.getSelection();
-      const range = selection?.getRangeAt?.(0);
+      // 先检查selection是否存在且有范围可以获取
+      const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
       const rect = range?.getBoundingClientRect();
 
       if (rect) {
