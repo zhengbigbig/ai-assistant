@@ -341,13 +341,13 @@ export default defineBackground(() => {
         ? sender.tab.incognito
         : false;
       const serviceName = message.serviceName;
-      const sourceLanguage = message.sourceLanguage;
+      // const sourceLanguage = message.sourceLanguage;
       const targetLanguage = message.targetLanguage;
       const sourceArray2d = message.sourceArray2d;
       translationService
         .translateHTML(
           serviceName,
-          sourceLanguage || 'auto',
+          'auto',
           targetLanguage,
           sourceArray2d,
           dontSaveInPersistentCache
@@ -364,7 +364,7 @@ export default defineBackground(() => {
       translationService
         .translateText(
           message.serviceName,
-          message.sourceLanguage || 'auto',
+          'auto',
           message.targetLanguage,
           message.sourceArray2d,
           message.dontSaveInPersistentCache
@@ -381,7 +381,7 @@ export default defineBackground(() => {
       translationService
         .translateText(
           message.serviceName,
-          message.sourceLanguage || 'auto',
+          'auto',
           message.targetLanguage,
           message.sourceArray2d,
           message.dontSaveInPersistentCache

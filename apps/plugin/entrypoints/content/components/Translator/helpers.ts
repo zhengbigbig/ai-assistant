@@ -438,7 +438,6 @@ const clearLineClampRestriction = (node:Node) => {
     const lineClampValue = computedStyle.getPropertyValue('-webkit-line-clamp') ||
                           computedStyle.getPropertyValue('line-clamp') ||
                           '';
-    console.log('lineClampValue',lineClampValue,node)
     if (lineClampValue && lineClampValue !== 'none') {
       // 解除line-clamp限制
       node.style.setProperty('-webkit-line-clamp', 'unset');
@@ -1447,7 +1446,6 @@ async function translateDynamically() {
             })
           )
         );
-
         if (
           useTranslationStore.getState().pageLanguageState === 'translated' &&
           currentFooCount === useTranslationStore.getState().fooCount
