@@ -431,6 +431,23 @@ const onlyContainsTextNodes = (element: Node): boolean => {
   return true;
 };
 
+// 是否段落截断，双语对照情况，先处理样式
+const clearLineClampRestriction = (node:Node) => {
+  if (useConfigStore.getState().translation.displayMode === DisplayMode.DUAL && node instanceof HTMLElement) {
+    const computedStyle = window.getComputedStyle(node);
+    const lineClampValue = computedStyle.getPropertyValue('-webkit-line-clamp') ||
+                          computedStyle.getPropertyValue('line-clamp') ||
+                          '';
+    console.log('lineClampValue',lineClampValue,node)
+    if (lineClampValue && lineClampValue !== 'none') {
+      // 解除line-clamp限制
+      node.style.setProperty('-webkit-line-clamp', 'unset');
+      node.style.setProperty('line-clamp', 'unset');
+      node.style.maxHeight = 'unset';
+    }
+  }
+}
+
 // 获取需要翻译的节点
 export const getNodesThatNeedToTranslate = async (
   root: Element
@@ -560,6 +577,8 @@ export const getNodesThatNeedToTranslate = async (
               // 拒绝该节点及其所有子节点，完全跳过这个分支
               return NodeFilter.FILTER_REJECT;
             }
+            // 双语对照重写节点样式
+            clearLineClampRestriction(node);
             // 块级节点，但子节点是文本，接受
             if (
               blockElementsList.includes(node.nodeName) &&
@@ -1111,7 +1130,6 @@ export const removeLoadingIconFromNode = (node: Element) => {
 
 // 翻译页面
 export const translatePage = async () => {
-  console.info('translatePage');
   const targetLanguage = useConfigStore.getState().translation.targetLanguage;
   // 增加计数器，用于追踪翻译状态的变化
   useTranslationStore.getState().incrementFooCount();
@@ -1198,42 +1216,40 @@ export function enableMutationObserver() {
 async function translateNewNodes() {
   try {
     for (const nn of useTranslationStore.getState().newNodes) {
+      // 跳过已经移除的节点
       if (useTranslationStore.getState().removedNodes.indexOf(nn) != -1)
         continue;
 
-      const newPiecesToTranslate = (
-        await getNodesThatNeedToTranslate(nn)
-      ).reduce((acc, [node, copiedNode]) => {
-        return acc.concat(getPiecesToTranslate(copiedNode ?? node, node));
-      }, []);
+      // 获取需要翻译的内容
+      const newPiecesToTranslate = (await getNodesThatNeedToTranslate(nn))
+        .reduce((acc, [node, copiedNode]) => {
+          return acc.concat(getPiecesToTranslate(copiedNode ?? node, node));
+        }, []);
 
+      // 过滤掉已经存在于翻译状态中的节点
       for (const i in newPiecesToTranslate) {
-        const newNodes = newPiecesToTranslate[i].nodes;
         let finded = false;
 
         for (const ntt of useTranslationStore.getState().piecesToTranslate) {
-          if (ntt.nodes.some((n1) => newNodes.some((n2: Node) => n1 === n2))) {
+          if (ntt.nodes.some((n1) => newPiecesToTranslate[i].nodes.some((n2: Node) => n1 === n2))) {
             finded = true;
           }
         }
 
         if (!finded) {
-          // 为每个新节点添加loading图标
-          newPiecesToTranslate[i].nodes.forEach((node: any) => {
-            if (node instanceof Element) {
-              addLoadingIconToNode(node);
-            }
+          // 添加loading图标
+          newPiecesToTranslate.forEach((node: any) => {
+            addLoadingIconToNode(node.originalElement);
           });
-
-          useTranslationStore
-            .getState()
-            .addPieceToTranslate(newPiecesToTranslate[i]);
+          // 添加到待翻译列表
+          useTranslationStore.getState().addPieceToTranslate(newPiecesToTranslate[i]);
         }
       }
     }
   } catch (e) {
     console.error('translateNewNodes error:', e);
   } finally {
+    // 清理节点列表
     useTranslationStore.getState().clearNodes();
   }
 }
@@ -1458,6 +1474,8 @@ async function translateDynamically() {
   }
   setTimeout(translateDynamically, 1500);
 }
+
+
 
 // 翻译属性
 function translateAttributes(
