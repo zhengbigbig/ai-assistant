@@ -1,5 +1,5 @@
 import { StyleProvider } from '@ant-design/cssinjs';
-import { ConfigProvider, theme } from 'antd';
+import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -29,14 +29,16 @@ function App({ shadowRoot }: { shadowRoot: ShadowRoot }) {
             },
           }}
         >
-          <DndProvider backend={HTML5Backend}>
-            <TextSelectionManager />
-            <ScreenshotManager />
-            <PageTranslator />
-            <HoverTranslator />
-            <SubtitleTranslator />
-            <InputTranslator />
-          </DndProvider>
+          <AntdApp>
+            <DndProvider backend={HTML5Backend}>
+              <TextSelectionManager />
+              <ScreenshotManager />
+              <PageTranslator />
+              <HoverTranslator />
+              <SubtitleTranslator />
+              <InputTranslator />
+            </DndProvider>
+          </AntdApp>
         </ConfigProvider>
       </StyleProvider>
     </StyleSheetManager>

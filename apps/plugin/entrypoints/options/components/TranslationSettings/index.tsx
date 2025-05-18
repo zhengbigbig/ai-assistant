@@ -7,6 +7,7 @@ import {
   TranslationOutlined,
 } from '@ant-design/icons';
 import {
+  App,
   Button,
   Col,
   Divider,
@@ -22,26 +23,26 @@ import {
   Switch,
   Tag,
   Tooltip,
-  Typography
+  Typography,
 } from 'antd';
 import React, { useEffect, useState } from 'react';
 import {
   DISPLAY_MODE_OPTIONS,
   TARGET_LANGUAGE_OPTIONS,
-  TRANSLATION_HOTKEY_OPTIONS
-} from '../../../../constants/config';
+  TRANSLATION_HOTKEY_OPTIONS,
+} from '@/constants/config';
 import type {
   CustomStyleConfig,
   ProviderType,
   TranslationSettings as TranslationSettingsType,
-} from '../../../stores/configStore';
+} from '@/entrypoints/stores/configStore';
 import {
   useConfigStore,
   useProviders,
   useSelectedProvider,
   useTranslation,
-} from '../../../stores/configStore';
-import { injectCustomStyleToHtml } from '../../../../utils/css';
+} from '@/entrypoints/stores/configStore';
+import { injectCustomStyleToHtml } from '@/utils/css';
 import {
   Label,
   ProviderActions,
@@ -60,7 +61,7 @@ import {
   AddProviderModal,
   CustomDictionaryModal,
   CustomStyleModal,
-  ProviderConfigModal
+  ProviderConfigModal,
 } from './components';
 
 const { Text, Paragraph } = Typography;
@@ -71,7 +72,7 @@ const { Text, Paragraph } = Typography;
  */
 const TranslationSettings: React.FC = () => {
   const [form] = Form.useForm();
-  const [messageApi, contextHolder] = message.useMessage();
+  const { message: messageApi, modal } = App.useApp();
   const [forbiddenWebsite, setForbiddenWebsite] = useState<string>('');
   const [translationProviderModal, setTranslationProviderModal] =
     useState(false);
@@ -417,7 +418,10 @@ const TranslationSettings: React.FC = () => {
       });
 
       // 如果修改了名称，更新当前选中的样式名称
-      if (values.name !== currentCustomStyle.name && displayStyle === currentCustomStyle.name) {
+      if (
+        values.name !== currentCustomStyle.name &&
+        displayStyle === currentCustomStyle.name
+      ) {
         updateTranslation({
           displayStyle: values.name,
         });
@@ -431,7 +435,7 @@ const TranslationSettings: React.FC = () => {
 
   // 删除自定义样式
   const handleDeleteCustomStyle = (styleName: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: '确认删除',
       content: '确定要删除这个自定义样式吗？',
       onOk: () => {
@@ -442,9 +446,21 @@ const TranslationSettings: React.FC = () => {
     });
   };
 
+  // 处理重置样式
+  const handleResetAllStyles = () => {
+    modal.confirm({
+      title: '确认重置样式',
+      content: '将重置所有样式',
+      onOk: () => {
+        const { resetAllCustomStyles } = useConfigStore.getState();
+        resetAllCustomStyles();
+        messageApi.success('样式已重置');
+      },
+    });
+  };
+
   return (
     <>
-      {contextHolder}
       <Form
         form={form}
         layout="vertical"
@@ -557,11 +573,16 @@ const TranslationSettings: React.FC = () => {
                         label: (
                           <StyleOptionLabel>
                             <span>{style.name}</span>
-                            <div>
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                              }}
+                              style={{marginRight:8}}
+                            >
                               <EditOutlined
                                 className="edit-icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                onClick={() => {
                                   openEditCustomStyleModal(style);
                                 }}
                                 style={{ marginRight: 8 }}
@@ -570,6 +591,7 @@ const TranslationSettings: React.FC = () => {
                                 className="edit-icon"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  e.preventDefault();
                                   handleDeleteCustomStyle(style.name);
                                 }}
                               />
@@ -599,32 +621,22 @@ const TranslationSettings: React.FC = () => {
                   />
                 </Form.Item>
                 <Space style={{ marginLeft: 8 }}>
-                  {translation.displayStyle &&
-                    customStyles.some(
-                      (style) => style.name === translation.displayStyle
-                    ) && (
-                      <Tooltip title="删除此样式">
-                        <Button
-                          type="text"
-                          danger
-                          icon={<DeleteOutlined />}
-                          size="small"
-                          onClick={() =>
-                            handleDeleteCustomStyle(translation.displayStyle)
-                          }
-                        />
-                      </Tooltip>
-                    )}
                   <Tooltip title="重置样式">
                     <Button
                       type="text"
                       size="small"
                       onClick={() => {
-                        const { resetCustomStyle } = useConfigStore.getState();
-                        if (translation.displayStyle) {
-                          resetCustomStyle(translation.displayStyle);
-                          messageApi.success('样式已重置');
-                        }
+                        // 增加二次确认
+                        modal.confirm({
+                          title: '确认重置样式',
+                          content: '将重置所有样式',
+                          onOk: () => {
+                            const { resetAllCustomStyles } =
+                              useConfigStore.getState();
+                            resetAllCustomStyles();
+                            messageApi.success('样式已重置');
+                          },
+                        });
                       }}
                     >
                       重置

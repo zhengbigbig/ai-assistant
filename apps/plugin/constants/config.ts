@@ -77,10 +77,10 @@ export const DEFAULT_CUSTOM_STYLE_TEMPLATES: CustomStyleConfig[] = [
     name: '虚线下划线',
     css: `
 .ai-assistant-translated-container {
-  border-bottom: 1px dashed #6e59f2;
+
 }
 .ai-assistant-translated {
-
+  border-bottom: 1px dashed #6e59f2;
 }
     `,
   },
@@ -118,7 +118,7 @@ export const DEFAULT_CUSTOM_STYLE_TEMPLATES: CustomStyleConfig[] = [
 
 }
 .ai-assistant-translated {
-  opacity: 0.2;
+  opacity: 0.03;
   transition: opacity 0.3s ease;
 }
 .ai-assistant-translated:hover {
@@ -180,10 +180,10 @@ export const DEFAULT_CUSTOM_STYLE_TEMPLATES: CustomStyleConfig[] = [
     name: '实线下划线',
     css: `
 .ai-assistant-translated-container {
-  border-bottom: 1px solid #6e59f2;
+
 }
 .ai-assistant-translated {
-
+  border-bottom: 1px solid #6e59f2;
 }
     `,
   },

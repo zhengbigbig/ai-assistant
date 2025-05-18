@@ -1,60 +1,17 @@
 import Editor, { OnMount } from '@monaco-editor/react';
-import { theme as antdTheme, ColorPicker } from 'antd';
-import * as monaco from 'monaco-editor';
-import { editor } from 'monaco-editor';
-import React, { useRef, useState, useEffect } from 'react';
-import styled from 'styled-components';
+import { theme as antdTheme, ColorPicker, Popover } from 'antd';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
+import React, { useRef, useState } from 'react';
 import './loader';
-import { createRoot } from 'react-dom/client';
-
-interface StyledContainerProps {
-  token: ReturnType<typeof antdTheme.useToken>['token'];
-}
 
 /**
- * 编辑器容器样式组件
- * 添加边框和圆角，并设置内部编辑器的padding
+ * 颜色选择器容器样式
  */
-const EditorContainer = styled.div<StyledContainerProps>`
-  border: 1px solid ${props => props.token.colorBorder};
-  border-radius: ${props => props.token.borderRadiusLG}px;
-  overflow: hidden;
-
-  .monaco-editor {
-    padding: 8px 0;
-  }
-
-  /* 隐藏原始颜色文本 */
-  .color-text-transparent {
-    color: transparent !important;
-    position: relative;
-  }
-
-  /* 自定义颜色块样式 */
-  .color-block-container {
-    display: inline-block;
-    position: relative;
-    width: 12px;
-    height: 12px;
-    border-radius: 2px;
-    vertical-align: middle;
-    margin: 0 4px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-  }
-`;
-
-/**
- * 颜色块组件
- */
-const ColorBlock = ({ color }: { color: string }) => {
-  return (
-    <div
-      className="color-block-container"
-      style={{ backgroundColor: color }}
-      title={color}
-    />
-  );
+const colorPickerContainerStyle = {
+  padding: '8px',
 };
+
 
 /**
  * 自定义CSS属性提示数据
@@ -62,7 +19,11 @@ const ColorBlock = ({ color }: { color: string }) => {
  */
 const cssProperties = [
   { label: 'color', documentation: '设置文本颜色', detail: 'CSS属性' },
-  { label: 'background-color', documentation: '设置背景颜色', detail: 'CSS属性' },
+  {
+    label: 'background-color',
+    documentation: '设置背景颜色',
+    detail: 'CSS属性',
+  },
   { label: 'font-size', documentation: '设置字体大小', detail: 'CSS属性' },
   { label: 'font-weight', documentation: '设置字体粗细', detail: 'CSS属性' },
   { label: 'padding', documentation: '设置内边距', detail: 'CSS属性' },
@@ -71,7 +32,11 @@ const cssProperties = [
   { label: 'border-radius', documentation: '设置边框圆角', detail: 'CSS属性' },
   { label: 'box-shadow', documentation: '设置盒子阴影', detail: 'CSS属性' },
   { label: 'text-shadow', documentation: '设置文本阴影', detail: 'CSS属性' },
-  { label: 'text-decoration', documentation: '设置文本装饰', detail: 'CSS属性' },
+  {
+    label: 'text-decoration',
+    documentation: '设置文本装饰',
+    detail: 'CSS属性',
+  },
   { label: 'line-height', documentation: '设置行高', detail: 'CSS属性' },
   { label: 'transition', documentation: '设置过渡效果', detail: 'CSS属性' },
   { label: 'transform', documentation: '设置变换效果', detail: 'CSS属性' },
@@ -96,11 +61,11 @@ const colorSuggestions = [
 ];
 
 interface MonacoCssEditorProps {
-  value?: string;               // 编辑器的初始值
-  onChange?: (value: string) => void;  // 值变化时的回调函数
-  height?: string | number;     // 编辑器高度
-  placeholder?: string;         // 占位符文本
-  isDarkMode?: boolean;         // 是否使用暗色主题
+  value?: string; // 编辑器的初始值
+  onChange?: (value: string) => void; // 值变化时的回调函数
+  height?: string | number; // 编辑器高度
+  placeholder?: string; // 占位符文本
+  isDarkMode?: boolean; // 是否使用暗色主题
 }
 
 // 用于保存当前选取的颜色值和位置信息
@@ -122,11 +87,17 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
   value = '',
   onChange,
   height = '160px',
-  isDarkMode = true
+  isDarkMode = true,
 }) => {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof monaco | null>(null);
   const { token } = antdTheme.useToken();
+  const [colorSelection, setColorSelection] = useState<ColorSelection>({
+    open: false,
+    position: { x: 0, y: 0 },
+    color: '#1890ff',
+    range: null,
+  });
 
   /**
    * 注册自定义补全提供器
@@ -135,36 +106,39 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
    */
   const registerCompletionProvider = (monacoInstance: typeof monaco) => {
     monacoInstance.languages.registerCompletionItemProvider('css', {
-      provideCompletionItems: (model: editor.ITextModel, position: monaco.Position) => {
+      provideCompletionItems: (
+        model: editor.ITextModel,
+        position: monaco.Position
+      ) => {
         const word = model.getWordUntilPosition(position);
         const range = {
           startLineNumber: position.lineNumber,
           endLineNumber: position.lineNumber,
           startColumn: word.startColumn,
-          endColumn: word.endColumn
+          endColumn: word.endColumn,
         };
 
         const suggestions = [
-          ...cssProperties.map(prop => ({
+          ...cssProperties.map((prop) => ({
             label: prop.label,
             kind: monacoInstance.languages.CompletionItemKind.Property,
             documentation: prop.documentation,
             detail: prop.detail,
             insertText: `${prop.label}: `,
-            range
+            range,
           })),
-          ...colorSuggestions.map(color => ({
+          ...colorSuggestions.map((color) => ({
             label: color.label,
             kind: monacoInstance.languages.CompletionItemKind.Color,
             documentation: color.documentation,
             detail: color.detail,
             insertText: color.label,
-            range
-          }))
+            range,
+          })),
         ];
 
         return { suggestions };
-      }
+      },
     });
   };
 
@@ -178,6 +152,56 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
     editorRef.current = editor;
     monacoRef.current = monacoInstance;
     registerCompletionProvider(monacoInstance);
+
+    // 添加鼠标点击事件监听器，检测点击颜色值
+    editor.onMouseDown((e) => {
+      if (e.target.type === monaco.editor.MouseTargetType.CONTENT_TEXT) {
+        const position = e.target.position;
+        const model = editor.getModel();
+
+        if (model && position) {
+          // 获取当前行文本
+          const lineContent = model.getLineContent(position.lineNumber);
+          const wordAtPosition = model.getWordAtPosition(position);
+
+          if (wordAtPosition) {
+            const word = lineContent.substring(
+              wordAtPosition.startColumn - 1,
+              wordAtPosition.endColumn - 1
+            );
+
+            // 检查是否是颜色值（简单检查：以#开头或者是rgb/rgba/hsl/hsla函数）
+            if (COLOR_REGEX.test(word)) {
+              // 获取颜色值位置的屏幕坐标
+              const domNode = editor.getDomNode();
+              if (domNode) {
+                const editorCoords = domNode.getBoundingClientRect();
+                const cursorCoords =
+                  editor.getScrolledVisiblePosition(position);
+
+                if (cursorCoords) {
+                  const x = editorCoords.left + cursorCoords.left;
+                  const y = editorCoords.top + cursorCoords.top;
+
+                  // 打开颜色选择器
+                  setColorSelection({
+                    open: true,
+                    position: { x, y },
+                    color: word,
+                    range: new monacoInstance.Range(
+                      position.lineNumber,
+                      wordAtPosition.startColumn,
+                      position.lineNumber,
+                      wordAtPosition.endColumn
+                    ),
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    });
   };
 
   /**
@@ -190,36 +214,119 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
     }
   };
 
+  /**
+   * 处理颜色变化
+   * @param newColor 新的颜色值
+   */
+  const handleColorChange = (newColor: string) => {
+    if (editorRef.current && monacoRef.current && colorSelection.range) {
+      // 获取编辑器模型
+      const model = editorRef.current.getModel();
+      if (model) {
+        // 执行编辑操作，替换选中的颜色值
+        editorRef.current.executeEdits('colorPicker', [
+          {
+            range: colorSelection.range,
+            text: newColor,
+            forceMoveMarkers: true,
+          },
+        ]);
+
+        // 更新编辑器内容
+        const newValue = model.getValue();
+        if (onChange) {
+          onChange(newValue);
+        }
+
+        // 关闭颜色选择器
+        setColorSelection({
+          ...colorSelection,
+          open: false,
+          color: newColor,
+        });
+      }
+    }
+  };
+
+  /**
+   * 关闭颜色选择器
+   */
+  const handleCloseColorPicker = () => {
+    setColorSelection({
+      ...colorSelection,
+      open: false,
+    });
+  };
+
+  // 编辑器容器样式
+  const editorContainerStyle = {
+    border: `1px solid ${token.colorBorder}`,
+    borderRadius: `${token.borderRadiusLG}px`,
+    overflow: 'hidden' as const,
+  };
+
   return (
-    <EditorContainer token={token}>
-      <Editor
-        height={height}
-        defaultLanguage="css"
-        theme={isDarkMode ? 'vs-dark' : 'vs'}  // 根据isDarkMode选择主题
-        value={value}
-        onChange={handleEditorChange}
-        onMount={handleEditorDidMount}
-        options={{
-          minimap: { enabled: true },        // 禁用右侧代码缩略图，减少视觉干扰
-          scrollBeyondLastLine: true,        // 禁止滚动超过最后一行，更符合表单输入体验
-          lineNumbers: 'on',                  // 显示行号
-          roundedSelection: true,             // 使用圆角选择框
-          automaticLayout: true,              // 自动调整布局大小
-          fontSize: 14,                       // 设置字体大小
-          colorDecorators: true,              // 颜色装饰器，CSS中的颜色值会显示对应的颜色预览
-          tabSize: 2,                         // 设置 tab 缩进为 2 个空格
-          suggestOnTriggerCharacters: true,   // 在触发字符时显示建议
-          quickSuggestions: true,             // 快速建议
-          contextmenu: true,                  // 启用右键菜单
+    <>
+      <div style={editorContainerStyle}>
+        <Editor
+          height={height}
+          defaultLanguage="css"
+          theme={isDarkMode ? 'vs-dark' : 'vs'} // 根据isDarkMode选择主题
+          value={value}
+          onChange={handleEditorChange}
+          onMount={handleEditorDidMount}
+          options={{
+            minimap: { enabled: true }, // 禁用右侧代码缩略图，减少视觉干扰
+            scrollBeyondLastLine: true, // 禁止滚动超过最后一行，更符合表单输入体验
+            lineNumbers: 'on', // 显示行号
+            roundedSelection: true, // 使用圆角选择框
+            automaticLayout: true, // 自动调整布局大小
+            fontSize: 14, // 设置字体大小
+            colorDecorators: true, // 颜色装饰器，CSS中的颜色值会显示对应的颜色预览
+            tabSize: 2, // 设置 tab 缩进为 2 个空格
+            suggestOnTriggerCharacters: true, // 在触发字符时显示建议
+            quickSuggestions: true, // 快速建议
+            contextmenu: true, // 启用右键菜单
+          }}
+        />
+        <style>{`
+          .monaco-placeholder-text {
+            color: ${token.colorTextPlaceholder};
+            font-style: italic;
+          }
+        `}</style>
+      </div>
+
+      {/* 颜色选择器弹出层 */}
+      <Popover
+        open={colorSelection.open}
+        onOpenChange={(visible) => !visible && handleCloseColorPicker()}
+        trigger="click"
+        content={
+          <div style={colorPickerContainerStyle}>
+            <ColorPicker
+              value={colorSelection.color}
+              onChange={(color) => {
+                // 实时更新颜色选择器中显示的颜色
+                setColorSelection({
+                  ...colorSelection,
+                  color: color.toHexString(),
+                });
+              }}
+              onChangeComplete={(color) => handleColorChange(color.toHexString())}
+              showText
+            />
+          </div>
+        }
+        styles={{
+          root: {
+            position: 'absolute',
+            left: `${colorSelection.position.x}px`,
+            top: `${colorSelection.position.y + 20}px`,
+          },
         }}
       />
-      <style>{`
-        .monaco-placeholder-text {
-          color: ${token.colorTextPlaceholder};
-          font-style: italic;
-        }
-      `}</style>
-    </EditorContainer>
+    </>
   );
 };
 

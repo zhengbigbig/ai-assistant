@@ -215,6 +215,8 @@ export interface ConfigState {
   updateCustomStyle: (name: string, updates: Partial<CustomStyleConfig>) => void;
   removeCustomStyle: (name: string) => void;
   resetCustomStyle: (name: string) => void;
+  // 重置所有自定义样式
+  resetAllCustomStyles: () => void;
 }
 
 // 创建持久化的zustand store
@@ -644,6 +646,12 @@ export const useConfigStore = create<ConfigState>()(
               };
             }
           }
+        })
+      ),
+
+      resetAllCustomStyles: () => set(
+        produce((state: ConfigState) => {
+          state.translation.customStyles = DEFAULT_CUSTOM_STYLE_TEMPLATES;
         })
       ),
     }),

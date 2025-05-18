@@ -1,5 +1,5 @@
 import { Button, Divider, Form, Input, Modal, Select } from 'antd';
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   DEFAULT_CUSTOM_STYLE_TEMPLATES,
   AI_ASSISTANT_TRANSLATED,
@@ -33,6 +33,8 @@ const CustomStyleModal: React.FC<CustomStyleModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [previewCss, setPreviewCss] = React.useState('');
+  const shadowRootRef = useRef<ShadowRoot | null>(null);
+  const shadowHostRef = useRef<HTMLDivElement | null>(null);
 
   // 组件挂载或currentStyle变更时，重置表单
   useEffect(() => {
@@ -55,6 +57,42 @@ const CustomStyleModal: React.FC<CustomStyleModalProps> = ({
     if (!validateCss(css)) return;
     setPreviewCss(css);
   }, []);
+
+  // 创建和更新ShadowDOM
+  useEffect(() => {
+    if (!open) return;
+
+    // 确保ShadowDOM已创建
+    if (shadowHostRef.current && !shadowRootRef.current) {
+      shadowRootRef.current = shadowHostRef.current.attachShadow({ mode: 'open' });
+    }
+
+    // 更新ShadowDOM内的样式和内容
+    if (shadowRootRef.current) {
+      // 清空旧内容
+      shadowRootRef.current.innerHTML = '';
+
+      // 创建样式元素
+      const styleElement = document.createElement('style');
+      styleElement.textContent = previewCss;
+      shadowRootRef.current.appendChild(styleElement);
+
+      // 创建翻译后内容容器
+      const translatedContainer = document.createElement('font');
+      translatedContainer.className = AI_ASSISTANT_TRANSLATED_CONTAINER;
+      translatedContainer.style.margin = '8px 0';
+      translatedContainer.style.display = 'inline-block';
+
+      // 创建翻译后内容
+      const translatedElement = document.createElement('font');
+      translatedElement.className = AI_ASSISTANT_TRANSLATED;
+      translatedElement.textContent = PREVIEW_TEXT.TRANSLATED;
+
+      // 组装DOM结构
+      translatedContainer.appendChild(translatedElement);
+      shadowRootRef.current.appendChild(translatedContainer);
+    }
+  }, [open, previewCss]);
 
   // 从编辑器内容中提取颜色值并实时更新
   useEffect(() => {
@@ -142,16 +180,8 @@ const CustomStyleModal: React.FC<CustomStyleModalProps> = ({
         <StylePreview>
           <div style={{ marginBottom: 8 }}>{PREVIEW_TEXT.ORIGINAL}</div>
           <div className={AI_ASSISTANT_TRANSLATED_WRAPPER}>
-            {/* 使用一个额外的样式元素 */}
-            <style>{previewCss}</style>
-            <div
-              className={AI_ASSISTANT_TRANSLATED_CONTAINER}
-              style={{ margin: '8px 0', display: 'inline-block' }}
-            >
-              <div className={AI_ASSISTANT_TRANSLATED}>
-                {PREVIEW_TEXT.TRANSLATED}
-              </div>
-            </div>
+            {/* 使用ShadowDOM提供样式隔离 */}
+            <div ref={shadowHostRef} />
           </div>
         </StylePreview>
       </Form>
