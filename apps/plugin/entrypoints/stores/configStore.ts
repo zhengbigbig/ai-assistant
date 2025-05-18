@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import { persist, PersistOptions } from 'zustand/middleware';
 import { produce } from 'immer';
 import syncStorageAdapter from './storage';
-import { TargetLanguage, DisplayMode, DisplayStyle, TranslationHotkey } from '../constants/config';
-import { CONFIG_STORAGE_KEY } from '../constants/key';
+import { TargetLanguage, DisplayMode, TranslationHotkey, DEFAULT_CUSTOM_STYLE_TEMPLATES } from '../../constants/config';
+import { CONFIG_STORAGE_KEY } from '../../constants/key';
 
 // 定义模型类型接口
 export interface ModelType {
@@ -30,19 +30,28 @@ export interface AppearanceSettings {
   fontSize: number;
 }
 
+// 自定义样式配置接口
+export interface CustomStyleConfig {
+  name: string;
+  css: string;
+}
+
 // 翻译设置接口
 export interface TranslationSettings {
   targetLanguage: string;
   displayMode: 'dual' | 'replace';
   translationService: string;
-  displayStyle: 'underline' | 'background' | 'border';
+  // 选中样式
+  displayStyle: string;
+  // 样式详情列表
+  customStyles: CustomStyleConfig[];
   forbiddenWebsites: string[];
   enableVideoSubtitleTranslation: boolean;
   enableInputTranslation: boolean;
   enableHoverTranslation: boolean;
   hoverHotkey: string;
   hoverTranslationService: string;
-  customDictionary: Record<string, string>; // 自定义词典
+  customDictionary: Record<string, string>;
 }
 
 // 网页助手设置接口
@@ -200,6 +209,12 @@ export interface ConfigState {
   addCustomDictionaryEntry: (key: string, value: string) => void;
   removeCustomDictionaryEntry: (key: string) => void;
   clearCustomDictionary: () => void;
+
+  // 自定义样式操作
+  addCustomStyle: (style: CustomStyleConfig, addToFront?: boolean) => void;
+  updateCustomStyle: (name: string, updates: Partial<CustomStyleConfig>) => void;
+  removeCustomStyle: (name: string) => void;
+  resetCustomStyle: (name: string) => void;
 }
 
 // 创建持久化的zustand store
@@ -308,14 +323,15 @@ export const useConfigStore = create<ConfigState>()(
         targetLanguage: TargetLanguage.ZH_CN,
         displayMode: DisplayMode.DUAL,
         translationService: 'google',
-        displayStyle: DisplayStyle.BACKGROUND,
+        displayStyle: DEFAULT_CUSTOM_STYLE_TEMPLATES[0].name,
+        customStyles: DEFAULT_CUSTOM_STYLE_TEMPLATES,
         forbiddenWebsites: [],
         enableVideoSubtitleTranslation: true,
         enableInputTranslation: false,
         enableHoverTranslation: true,
         hoverHotkey: TranslationHotkey.OPTION,
         hoverTranslationService: 'google',
-        customDictionary: {}, // 初始化为空对象
+        customDictionary: {},
       },
 
       // 网页助手设置默认值
@@ -582,7 +598,54 @@ export const useConfigStore = create<ConfigState>()(
             state.translation.customDictionary = {};
           })
         );
-        },
+      },
+
+      // 自定义样式操作
+      addCustomStyle: (style: CustomStyleConfig, addToFront?: boolean) => set(
+        produce((state: ConfigState) => {
+          if (addToFront) {
+            // 添加到数组最前面
+            state.translation.customStyles.unshift(style);
+          } else {
+            // 添加到数组末尾
+            state.translation.customStyles.push(style);
+          }
+        })
+      ),
+
+      updateCustomStyle: (name: string, updates: Partial<CustomStyleConfig>) => set(
+        produce((state: ConfigState) => {
+          const styleIndex = state.translation.customStyles.findIndex(s => s.name === name);
+          if (styleIndex !== -1) {
+            state.translation.customStyles[styleIndex] = {
+              ...state.translation.customStyles[styleIndex],
+              ...updates
+            };
+          }
+        })
+      ),
+
+      removeCustomStyle: (name: string) => set(
+        produce((state: ConfigState) => {
+          state.translation.customStyles = state.translation.customStyles.filter(s => s.name !== name);
+          state.translation.displayStyle = state.translation.customStyles[0].name;
+        })
+      ),
+
+      resetCustomStyle: (name: string) => set(
+        produce((state: ConfigState) => {
+          const template = DEFAULT_CUSTOM_STYLE_TEMPLATES.find(t => t.name === name);
+          if (template) {
+            const styleIndex = state.translation.customStyles.findIndex(s => s.name === name);
+            if (styleIndex !== -1) {
+              state.translation.customStyles[styleIndex] = {
+                ...state.translation.customStyles[styleIndex],
+                css: template.css
+              };
+            }
+          }
+        })
+      ),
     }),
     {
       name: CONFIG_STORAGE_KEY,

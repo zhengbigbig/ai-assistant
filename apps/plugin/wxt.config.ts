@@ -1,4 +1,5 @@
 import { defineConfig } from 'wxt';
+import path from 'path';
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -43,5 +44,16 @@ export default defineConfig({
         description: '截取页面截图并添加到输入框'
       }
     }
-  }
+  },
+  // 配置vite
+  vite: () => ({
+      resolve: {
+        alias: {
+          '@': path.resolve(__dirname, './'),
+        }
+      },
+    optimizeDeps: {
+      include: ['monaco-editor']
+    }
+  })
 });

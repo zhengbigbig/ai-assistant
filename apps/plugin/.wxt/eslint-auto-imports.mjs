@@ -14,8 +14,11 @@ const globals = {
   "defineUnlistedScript": true,
   "defineWxtPlugin": true,
   "fakeBrowser": true,
+  "injectCustomStyleToHtml": true,
   "injectScript": true,
+  "languages": true,
   "storage": true,
+  "updateCssColor": true,
   "useAppConfig": true,
   "useCallback": true,
   "useContext": true,
@@ -23,7 +26,8 @@ const globals = {
   "useMemo": true,
   "useReducer": true,
   "useRef": true,
-  "useState": true
+  "useState": true,
+  "validateCss": true
 }
 
 export default {

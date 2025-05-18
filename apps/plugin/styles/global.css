@@ -65,3 +65,14 @@ body {
   -ms-user-select: none;
   user-select: none;
 }
+
+/* Monaco编辑器样式 */
+.monaco-editor .monaco-placeholder-text {
+  color: rgba(128, 128, 128, 0.6);
+  font-style: italic;
+}
+
+/* 确保Monaco编辑器在暗黑模式下的滚动条可见 */
+.monaco-editor .scrollbar {
+  opacity: 0.6 !important;
+}

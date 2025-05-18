@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Card, Spin, Typography } from 'antd';
 import styled from 'styled-components';
 import { useTranslation } from '../../../stores/configStore';
-import { TranslationHotkey } from '../../../constants/config';
+import { TranslationHotkey } from '../../../../constants/config';
 
 const { Text } = Typography;
 

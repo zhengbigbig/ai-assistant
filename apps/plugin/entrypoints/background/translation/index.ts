@@ -1,7 +1,7 @@
 /**
  * 翻译服务主接口
  */
-import { languages } from '../../utils/languages';
+import { languages } from '../../../utils/languages';
 import { TranslationServiceFactory, TranslationServiceType } from './serviceFactory';
 import { OpenAIServiceParams, TranslationService } from './types';
 

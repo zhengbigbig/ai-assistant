@@ -16,8 +16,11 @@ declare global {
   const defineUnlistedScript: typeof import('wxt/sandbox')['defineUnlistedScript']
   const defineWxtPlugin: typeof import('wxt/sandbox')['defineWxtPlugin']
   const fakeBrowser: typeof import('wxt/testing')['fakeBrowser']
+  const injectCustomStyleToHtml: typeof import('/Users/zhengzhiheng/Desktop/github/ai-assistant/apps/plugin/utils/css')['injectCustomStyleToHtml']
   const injectScript: typeof import('wxt/client')['injectScript']
+  const languages: typeof import('/Users/zhengzhiheng/Desktop/github/ai-assistant/apps/plugin/utils/languages')['languages']
   const storage: typeof import('wxt/storage')['storage']
+  const updateCssColor: typeof import('/Users/zhengzhiheng/Desktop/github/ai-assistant/apps/plugin/utils/css')['updateCssColor']
   const useAppConfig: typeof import('wxt/client')['useAppConfig']
   const useCallback: typeof import('react')['useCallback']
   const useContext: typeof import('react')['useContext']
@@ -26,4 +29,5 @@ declare global {
   const useReducer: typeof import('react')['useReducer']
   const useRef: typeof import('react')['useRef']
   const useState: typeof import('react')['useState']
+  const validateCss: typeof import('/Users/zhengzhiheng/Desktop/github/ai-assistant/apps/plugin/utils/css')['validateCss']
 }

@@ -12,7 +12,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useConfigStore, useTranslation } from '../../../stores/configStore';
 import { useTranslationStore } from '../../../stores/translationStore';
-import { languages } from '../../../utils/languages';
+import { languages } from '../../../../utils/languages';
 import {
   detectPageLanguage,
   disableMutationObserver,

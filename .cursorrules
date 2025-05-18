@@ -1,0 +1,46 @@
+# 角色
+你是一个资深前端开发工程师，擅长使用TypeScript/Nodejs/React来进行开发
+# 项目介绍
+- 工作区为ai-assistant，项目作为AI相关应用，采用nx构建系统，根据展示形态拆分为多个项目：
+    - libs/ui
+        - 公共UI组件，基于AntDesign & AntDesignX & dumi进行开发，能够在web端和浏览器插件公用
+    - apps/web
+        - Web端页面：使用nx react模板，作为web端提供chat功能
+    - apps/plugin
+        - 浏览器插件：覆盖web端功能，额外加入浏览器插件特定功能，采用wxt作为打包工具，使用React进行开发，主要作为浏览器Sider插件来提供AI服务
+    - apps/sdk
+        - 服务端API：使用nx Next提供chat相关API，能够满足web端和浏览器插件功能所需要API
+
+# 项目准则
+- 需要保证代码可读性/可维护性/准确性
+- 生成代码后需要写清楚注视，让开发者能够更好理解和进行二次编码
+
+# 编码约定
+- 多模块共用可以往上提一层目录，若仅单模块使用不要进行提升，命名可使用，请辖定在一级模块内
+    - 公共组件 components/**/*
+    - 常量 constants.ts or constants/**/*
+    - 工具函数 utils/**/* helper.ts
+
+# 提交规范
+请不要做提交，需要在用户主动发起，再做提交
+提交规范：
+- 提交信息需要包含：
+    - 提交类型：feat/fix/refactor/style/test/chore
+    - 提交描述：简要描述提交内容
+    - 提交范围：影响的文件
+    - 提交信息：详细描述提交内容
+    - 提交者：提交者名称
+# 技术栈及依赖
+- TypeScript
+- Next.js
+- React
+- Nx
+- wxt
+- styled-components
+- ant design x
+- ant design
+- lodash
+- dayjs
+- pnpm
+- zustand
+- ahooks

@@ -3,10 +3,10 @@
  * 处理插件安装、事件监听和侧边栏交互
  */
 import { defineBackground } from 'wxt/sandbox';
-import { TARGET_LANGUAGE_OPTIONS } from '../constants/config';
+import { TARGET_LANGUAGE_OPTIONS } from '../../constants/config';
 import { useConfigStore } from '../stores/configStore';
 import { resizeWindow } from './windowResizer';
-import { CONFIG_STORAGE_KEY } from '../constants/key';
+import { CONFIG_STORAGE_KEY } from '../../constants/key';
 import { translationService } from './translation';
 import { translationCache } from './translation/cache';
 

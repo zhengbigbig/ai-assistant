@@ -1,11 +1,11 @@
-import { DisplayMode, DisplayStyle } from '../../../constants/config';
+import { AI_ASSISTANT_TRANSLATED, AI_ASSISTANT_TRANSLATED_CONTAINER, AI_ASSISTANT_TRANSLATED_WRAPPER, DisplayMode } from '../../../../constants/config';
 import { useConfigStore } from '../../../stores/configStore';
 import {
   AttributeToTranslate,
   PieceToTranslate,
   useTranslationStore,
 } from '../../../stores/translationStore';
-import { languages } from '../../../utils/languages';
+import { languages } from '../../../../utils/languages';
 import {
   BLOCK_ELEMENTS,
   HTML_TAGS_INLINE_IGNORE,
@@ -700,38 +700,27 @@ export const copyNodeToBottom = (node: Element) => {
     (node as HTMLElement).style.display.includes('table') ||
     (node as HTMLElement).style.display.includes('flow-root');
 
-  const displayStyle = useConfigStore.getState().translation.displayStyle;
-
   // 创建翻译容器节点 - 主要是最外层包裹
   const translatedNodeWrapper = document.createElement('font');
-  translatedNodeWrapper.classList.add('ai-assistant-translated-wrapper');
+  translatedNodeWrapper.classList.add(AI_ASSISTANT_TRANSLATED_WRAPPER);
 
   // 标记副本节点为已复制节点，以便后续恢复页面时能够识别和移除
   translatedNodeWrapper.setAttribute(TRANSLATE_MARK_ATTR, 'copiedNode');
 
   // 创建翻译节点容器 - 主要控制结构
   const translatedNodeContainer = document.createElement('div');
-  translatedNodeContainer.classList.add('ai-assistant-translated-container');
-  // underline: 下划线，margin: 8px 0;
-  // background: 背景色，margin: 8px 0;
-  // border: 边框,margin: 8px 0;padding: 6px;border: 1px solid #72ECE9;
-  // 是否
+  translatedNodeContainer.classList.add(AI_ASSISTANT_TRANSLATED_CONTAINER);
+
+  // 应用基础样式
   if (isBlockElement) {
     translatedNodeContainer.style.margin = '8px 0';
     translatedNodeContainer.style.display = 'inline-block';
   }
-  if (displayStyle === DisplayStyle.BORDER) {
-    translatedNodeContainer.style.padding = '6px';
-    translatedNodeContainer.style.border = '1px dashed #72ECE9';
-  }
+  // 其他样式直接在配置写入body
 
   // 创建翻译节点
   const translatedNode = document.createElement('font');
-  translatedNode.classList.add('ai-assistant-translated');
-  if (displayStyle === DisplayStyle.BACKGROUND) {
-    translatedNode.style.backgroundColor = '#EAD0B3';
-  }
-
+  translatedNode.classList.add(AI_ASSISTANT_TRANSLATED);
   translatedNode.innerHTML = node.innerHTML;
   translatedNodeContainer.appendChild(translatedNode);
 

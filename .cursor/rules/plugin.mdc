@@ -1,0 +1,18 @@
+---
+description: 
+globs: apps/plugin/**/*
+alwaysApply: false
+---
+# 技术栈及依赖
+- TypeScript
+- React
+- Nx
+- wxt
+- styled-components
+- ant design x
+- ant design
+- lodash
+- dayjs
+- pnpm
+- zustand
+- ahooks

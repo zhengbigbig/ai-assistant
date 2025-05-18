@@ -1,15 +1,15 @@
 import {
   ControlOutlined,
   DeleteOutlined,
-  EyeInvisibleOutlined,
-  EyeTwoTone,
+  EditOutlined,
+  FormOutlined,
   PlusOutlined,
   TranslationOutlined,
-  FormOutlined
 } from '@ant-design/icons';
 import {
   Button,
   Col,
+  Divider,
   Empty,
   Flex,
   Form,
@@ -21,82 +21,49 @@ import {
   Space,
   Switch,
   Tag,
-  Typography,
-  Table,
-  Tooltip
+  Tooltip,
+  Typography
 } from 'antd';
 import React, { useEffect, useState } from 'react';
-import styled from 'styled-components';
-import type { ProviderType, TranslationSettings } from '../../stores/configStore';
-import { useConfigStore, useProviders, useSelectedProvider, useTranslation } from '../../stores/configStore';
+import {
+  DISPLAY_MODE_OPTIONS,
+  TARGET_LANGUAGE_OPTIONS,
+  TRANSLATION_HOTKEY_OPTIONS
+} from '../../../../constants/config';
+import type {
+  CustomStyleConfig,
+  ProviderType,
+  TranslationSettings as TranslationSettingsType,
+} from '../../../stores/configStore';
+import {
+  useConfigStore,
+  useProviders,
+  useSelectedProvider,
+  useTranslation,
+} from '../../../stores/configStore';
+import { injectCustomStyleToHtml } from '../../../../utils/css';
 import {
   Label,
+  ProviderActions,
+  ProviderInfo,
+  ProviderItem,
+  ProviderLogo,
+  ProviderName,
   StyledCard,
   StyledDivider,
   StyledSection,
   StyledTitle,
+  StyleOptionLabel,
   TitleWithIcon,
 } from './Wrapper';
-import { DISPLAY_MODE_OPTIONS, DISPLAY_STYLE_OPTIONS, TARGET_LANGUAGE_OPTIONS, TRANSLATION_HOTKEY_OPTIONS } from '../../constants/config';
+import {
+  AddProviderModal,
+  CustomDictionaryModal,
+  CustomStyleModal,
+  ProviderConfigModal
+} from './components';
 
 const { Text, Paragraph } = Typography;
-
-// 样式化组件
-const ProviderItem = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  border: 1px solid #f0f0f0;
-  border-radius: 8px;
-  margin-bottom: 12px;
-  transition: all 0.3s;
-  cursor: pointer;
-
-  &:hover {
-    border-color: #d9d9d9;
-    background-color: #fafafa;
-  }
-
-  &.selected {
-    border-color: #1890ff;
-    background-color: #e6f7ff;
-  }
-`;
-
-const ProviderInfo = styled.div`
-  display: flex;
-  align-items: center;
-`;
-
-const ProviderLogo = styled.div`
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-
-  img {
-    max-width: 100%;
-    max-height: 100%;
-  }
-`;
-
-const ProviderName = styled(Text)`
-  font-weight: 500;
-`;
-
-const ProviderActions = styled.div`
-  display: flex;
-  gap: 8px;
-`;
-
-const AddProviderButton = styled(Button)`
-  width: 100%;
-  margin-top: 16px;
-  border-style: dashed;
-`;
 
 /**
  * 翻译设置组件
@@ -106,26 +73,56 @@ const TranslationSettings: React.FC = () => {
   const [form] = Form.useForm();
   const [messageApi, contextHolder] = message.useMessage();
   const [forbiddenWebsite, setForbiddenWebsite] = useState<string>('');
-  const [translationProviderModal, setTranslationProviderModal] = useState(false);
-  const [currentProvider, setCurrentProvider] = useState<ProviderType | null>(null);
+  const [translationProviderModal, setTranslationProviderModal] =
+    useState(false);
+  const [currentProvider, setCurrentProvider] = useState<ProviderType | null>(
+    null
+  );
   const [translationProviderForm] = Form.useForm();
   const [addProviderModalVisible, setAddProviderModalVisible] = useState(false);
   const [addProviderForm] = Form.useForm();
 
   // 自定义词典相关状态
-  const [customDictionaryModalVisible, setCustomDictionaryModalVisible] = useState(false);
-  const [customDictionaryKeyword, setCustomDictionaryKeyword] = useState('');
-  const [customDictionaryValue, setCustomDictionaryValue] = useState('');
+  const [customDictionaryModalVisible, setCustomDictionaryModalVisible] =
+    useState(false);
+
+  // 自定义样式相关状态
+  const [customStyleModalVisible, setCustomStyleModalVisible] = useState(false);
+  const [currentCustomStyle, setCurrentCustomStyle] =
+    useState<CustomStyleConfig | null>(null);
+  const [customStyleEditorMode, setCustomStyleEditorMode] = useState<
+    'create' | 'edit'
+  >('create');
 
   // 从store获取翻译设置和更新方法
   const translation = useTranslation();
-  const { forbiddenWebsites, customDictionary = {} } = translation;
-  const { updateTranslation, addCustomDictionaryEntry, removeCustomDictionaryEntry } = useConfigStore();
+  const {
+    forbiddenWebsites,
+    customDictionary = {},
+    customStyles = [],
+    displayStyle,
+  } = translation;
+  const currentCustomCss =
+    customStyles.find((it) => it?.name === displayStyle)?.css || '';
+  const {
+    updateTranslation,
+    addCustomDictionaryEntry,
+    removeCustomDictionaryEntry,
+    addCustomStyle,
+    updateCustomStyle,
+  } = useConfigStore();
   const providers = useProviders();
   const selectedProvider = useSelectedProvider();
 
+  // 监听样式变化并注入
+  useEffect(() => {
+    if (currentCustomCss) {
+      injectCustomStyleToHtml(currentCustomCss);
+    }
+  }, [currentCustomCss]);
+
   // 确保enable开关使用默认值
-  const formInitialValues: TranslationSettings = {
+  const formInitialValues: TranslationSettingsType = {
     targetLanguage: 'zh-CN',
     displayMode: 'dual',
     translationService: 'google',
@@ -136,7 +133,8 @@ const TranslationSettings: React.FC = () => {
     enableHoverTranslation: true,
     hoverHotkey: 'option',
     hoverTranslationService: 'google',
-    customDictionary: {}
+    customDictionary: {},
+    customStyles: [],
   };
 
   // 加载设置到表单
@@ -145,8 +143,7 @@ const TranslationSettings: React.FC = () => {
     if (translation) {
       // 合并默认值和存储的值
       const mergedValues = {
-        ...formInitialValues,
-        ...translation
+        ...translation,
       };
       form.setFieldsValue(mergedValues);
     }
@@ -160,24 +157,24 @@ const TranslationSettings: React.FC = () => {
     const { providers, addProvider } = useConfigStore.getState();
 
     // 检查是否存在谷歌翻译
-    if (!providers.some(p => p.id === 'google')) {
+    if (!providers.some((p) => p.id === 'google')) {
       addProvider({
         id: 'google',
         name: '谷歌翻译',
         apiKey: '',
         baseUrl: 'https://translate.googleapis.com/translate_a/single',
-        models: []
+        models: [],
       });
     }
 
     // 检查是否存在智谱GLM翻译
-    if (!providers.some(p => p.id === 'glm')) {
+    if (!providers.some((p) => p.id === 'glm')) {
       addProvider({
         id: 'glm',
         name: '智谱GLM翻译',
         apiKey: '',
         baseUrl: '',
-        models: []
+        models: [],
       });
     }
   };
@@ -217,23 +214,29 @@ const TranslationSettings: React.FC = () => {
   };
 
   // 处理翻译服务提供商配置点击
-  const handleTranslationProviderConfig = (e: React.MouseEvent, providerId: string) => {
+  const handleTranslationProviderConfig = (
+    e: React.MouseEvent,
+    providerId: string
+  ) => {
     e.stopPropagation(); // 阻止事件冒泡
-    const provider = providers.find(p => p.id === providerId);
+    const provider = providers.find((p) => p.id === providerId);
     if (provider) {
       setCurrentProvider(provider);
       translationProviderForm.setFieldsValue({
         id: provider.id,
         name: provider.name,
         apiKey: provider.apiKey,
-        baseUrl: provider.baseUrl
+        baseUrl: provider.baseUrl,
       });
       setTranslationProviderModal(true);
     }
   };
 
   // 处理删除翻译服务提供商
-  const handleDeleteTranslationProvider = (e: React.MouseEvent, providerId: string) => {
+  const handleDeleteTranslationProvider = (
+    e: React.MouseEvent,
+    providerId: string
+  ) => {
     e.stopPropagation(); // 阻止事件冒泡
 
     // 不允许删除默认的谷歌和智谱翻译
@@ -266,7 +269,7 @@ const TranslationSettings: React.FC = () => {
 
   // 添加翻译服务提供商
   const handleAddTranslationProvider = () => {
-    addProviderForm.validateFields().then(values => {
+    addProviderForm.validateFields().then((values) => {
       const { addProvider } = useConfigStore.getState();
       const newProviderId = 'translation-' + Date.now().toString();
 
@@ -275,7 +278,7 @@ const TranslationSettings: React.FC = () => {
         name: values.name,
         apiKey: values.apiKey || '',
         baseUrl: values.baseUrl || '',
-        models: []
+        models: [],
       });
 
       messageApi.success('翻译服务提供商已添加');
@@ -286,13 +289,13 @@ const TranslationSettings: React.FC = () => {
 
   // 保存翻译提供商设置
   const saveTranslationProviderSettings = () => {
-    translationProviderForm.validateFields().then(values => {
+    translationProviderForm.validateFields().then((values) => {
       if (currentProvider) {
         // 这里使用configStore中的updateProvider方法更新提供商信息
         const { updateProvider } = useConfigStore.getState();
         updateProvider(currentProvider.id, {
           apiKey: values.apiKey,
-          baseUrl: values.baseUrl
+          baseUrl: values.baseUrl,
         });
         messageApi.success('翻译服务提供商设置已保存');
         setTranslationProviderModal(false);
@@ -301,30 +304,26 @@ const TranslationSettings: React.FC = () => {
   };
 
   // 添加自定义词典条目
-  const handleAddCustomDictionaryEntry = () => {
-    if (!customDictionaryKeyword.trim()) {
+  const handleAddCustomDictionaryEntry = (keyword: string, value: string) => {
+    if (!keyword) {
       messageApi.info('请输入关键词');
       return;
     }
 
-    if (!customDictionaryValue.trim()) {
+    if (!value) {
       messageApi.info('请输入替换值');
       return;
     }
 
     // 检查是否已存在相同关键词
-    if (customDictionaryKeyword.trim() in customDictionary) {
+    if (keyword in customDictionary) {
       messageApi.warning('该关键词已存在');
       return;
     }
 
     // 添加到词典
-    addCustomDictionaryEntry(customDictionaryKeyword.trim(), customDictionaryValue.trim());
+    addCustomDictionaryEntry(keyword, value);
     messageApi.success('添加成功');
-
-    // 清空输入框
-    setCustomDictionaryKeyword('');
-    setCustomDictionaryValue('');
   };
 
   // 删除自定义词典条目
@@ -360,37 +359,88 @@ const TranslationSettings: React.FC = () => {
     );
   };
 
-  // 自定义词典表格列定义
-  const customDictionaryColumns = [
-    {
-      title: '原文',
-      dataIndex: 'key',
-      key: 'key',
-    },
-    {
-      title: '替换为',
-      dataIndex: 'value',
-      key: 'value',
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_: any, record: {key: string, value: string}) => (
-        <Button
-          type="text"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => handleDeleteCustomDictionaryEntry(record.key)}
-        />
-      ),
-    },
-  ];
+  // 打开自定义样式弹窗 - 创建新样式
+  const openCustomStyleModal = () => {
+    setCustomStyleEditorMode('create');
+    setCurrentCustomStyle(null);
+    setCustomStyleModalVisible(true);
+  };
 
-  // 将对象格式转换为表格数据格式
-  const customDictionaryTableData = Object.entries(customDictionary || {}).map(([key, value]) => ({
-    key,
-    value: value as string
-  }));
+  // 打开自定义样式弹窗 - 编辑已有样式
+  const openEditCustomStyleModal = (style: CustomStyleConfig) => {
+    setCustomStyleEditorMode('edit');
+    setCurrentCustomStyle(style);
+    setCustomStyleModalVisible(true);
+  };
+
+  // 保存自定义样式
+  const saveCustomStyle = (values: { name: string; css: string }) => {
+    const { addCustomStyle, updateCustomStyle, updateTranslation } =
+      useConfigStore.getState();
+
+    if (customStyleEditorMode === 'create') {
+      // 检查样式名称是否重复
+      if (customStyles.some((style) => style.name === values.name)) {
+        messageApi.error('样式名称已存在，请使用不同的名称');
+        return;
+      }
+
+      // 创建新样式
+      const newStyle: CustomStyleConfig = {
+        name: values.name,
+        css: values.css,
+      };
+
+      // 添加自定义样式（添加到最前面）
+      addCustomStyle(newStyle, true);
+
+      // 设置显示风格为新创建的样式名称
+      updateTranslation({
+        displayStyle: newStyle.name,
+      });
+
+      messageApi.success('自定义样式已保存');
+    } else if (currentCustomStyle) {
+      // 检查是否修改了名称且新名称已存在
+      if (
+        values.name !== currentCustomStyle.name &&
+        customStyles.some((style) => style.name === values.name)
+      ) {
+        messageApi.error('样式名称已存在，请使用不同的名称');
+        return;
+      }
+
+      // 更新已有样式
+      updateCustomStyle(currentCustomStyle.name, {
+        name: values.name,
+        css: values.css,
+      });
+
+      // 如果修改了名称，更新当前选中的样式名称
+      if (values.name !== currentCustomStyle.name && displayStyle === currentCustomStyle.name) {
+        updateTranslation({
+          displayStyle: values.name,
+        });
+      }
+
+      messageApi.success('自定义样式已更新');
+    }
+
+    setCustomStyleModalVisible(false);
+  };
+
+  // 删除自定义样式
+  const handleDeleteCustomStyle = (styleName: string) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除这个自定义样式吗？',
+      onOk: () => {
+        const { removeCustomStyle } = useConfigStore.getState();
+        removeCustomStyle(styleName);
+        messageApi.success('自定义样式已删除');
+      },
+    });
+  };
 
   return (
     <>
@@ -420,7 +470,11 @@ const TranslationSettings: React.FC = () => {
                 {providers.map((provider) => (
                   <Col span={12} key={provider.id}>
                     <ProviderItem
-                      className={translation.translationService === provider.id ? 'selected' : ''}
+                      className={
+                        translation.translationService === provider.id
+                          ? 'selected'
+                          : ''
+                      }
                       onClick={() => handleSetTranslationService(provider.id)}
                     >
                       <ProviderInfo>
@@ -433,7 +487,9 @@ const TranslationSettings: React.FC = () => {
                         <Button
                           type="primary"
                           size="small"
-                          onClick={(e) => handleTranslationProviderConfig(e, provider.id)}
+                          onClick={(e) =>
+                            handleTranslationProviderConfig(e, provider.id)
+                          }
                         >
                           设置
                         </Button>
@@ -442,8 +498,12 @@ const TranslationSettings: React.FC = () => {
                           type="text"
                           size="small"
                           icon={<DeleteOutlined />}
-                          onClick={(e) => handleDeleteTranslationProvider(e, provider.id)}
-                          disabled={provider.id === 'google' || provider.id === 'glm'}
+                          onClick={(e) =>
+                            handleDeleteTranslationProvider(e, provider.id)
+                          }
+                          disabled={
+                            provider.id === 'google' || provider.id === 'glm'
+                          }
                         />
                       </ProviderActions>
                     </ProviderItem>
@@ -454,19 +514,23 @@ const TranslationSettings: React.FC = () => {
               <Empty description="暂无服务提供商" />
             )}
 
-            <AddProviderButton
+            <Button
               icon={<PlusOutlined />}
               onClick={() => setAddProviderModalVisible(true)}
+              style={{ width: '100%', marginTop: 16, borderStyle: 'dashed' }}
             >
               添加翻译服务提供商
-            </AddProviderButton>
+            </Button>
 
             <StyledDivider />
 
             <Flex justify="space-between" align="center">
               <Label>目标语言</Label>
               <Form.Item name="targetLanguage" noStyle>
-                <Select style={{ width: 200 }} options={TARGET_LANGUAGE_OPTIONS} />
+                <Select
+                  style={{ width: 200 }}
+                  options={TARGET_LANGUAGE_OPTIONS}
+                />
               </Form.Item>
             </Flex>
 
@@ -483,9 +547,91 @@ const TranslationSettings: React.FC = () => {
 
             <Flex justify="space-between" align="center">
               <Label>显示风格</Label>
-              <Form.Item name="displayStyle" noStyle>
-                <Select style={{ width: 200 }} options={DISPLAY_STYLE_OPTIONS} />
-              </Form.Item>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <Form.Item name="displayStyle" noStyle>
+                  <Select
+                    style={{ width: 200 }}
+                    options={customStyles.map((style) => {
+                      return {
+                        value: style.name, // 使用 id 或 name 作为值
+                        label: (
+                          <StyleOptionLabel>
+                            <span>{style.name}</span>
+                            <div>
+                              <EditOutlined
+                                className="edit-icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditCustomStyleModal(style);
+                                }}
+                                style={{ marginRight: 8 }}
+                              />
+                              <DeleteOutlined
+                                className="edit-icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteCustomStyle(style.name);
+                                }}
+                              />
+                            </div>
+                          </StyleOptionLabel>
+                        ),
+                      };
+                    })}
+                    optionLabelProp="children"
+                    dropdownRender={(menu) => (
+                      <>
+                        {menu}
+                        <Divider style={{ margin: '8px 0' }} />
+                        <Button
+                          type="text"
+                          icon={<PlusOutlined />}
+                          block
+                          onClick={(e) => {
+                            e.preventDefault();
+                            openCustomStyleModal();
+                          }}
+                        >
+                          添加自定义样式
+                        </Button>
+                      </>
+                    )}
+                  />
+                </Form.Item>
+                <Space style={{ marginLeft: 8 }}>
+                  {translation.displayStyle &&
+                    customStyles.some(
+                      (style) => style.name === translation.displayStyle
+                    ) && (
+                      <Tooltip title="删除此样式">
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          size="small"
+                          onClick={() =>
+                            handleDeleteCustomStyle(translation.displayStyle)
+                          }
+                        />
+                      </Tooltip>
+                    )}
+                  <Tooltip title="重置样式">
+                    <Button
+                      type="text"
+                      size="small"
+                      onClick={() => {
+                        const { resetCustomStyle } = useConfigStore.getState();
+                        if (translation.displayStyle) {
+                          resetCustomStyle(translation.displayStyle);
+                          messageApi.success('样式已重置');
+                        }
+                      }}
+                    >
+                      重置
+                    </Button>
+                  </Tooltip>
+                </Space>
+              </div>
             </Flex>
 
             <StyledDivider />
@@ -577,15 +723,23 @@ const TranslationSettings: React.FC = () => {
                   允许通过鼠标悬停快速翻译页面中的文本段落
                 </Text>
               </Label>
-              <Form.Item name="enableHoverTranslation" noStyle valuePropName="checked">
-          <Switch />
-        </Form.Item>
+              <Form.Item
+                name="enableHoverTranslation"
+                noStyle
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
             </Flex>
 
             <StyledDivider />
 
             <Label>触发条件</Label>
-            <Flex align="center" gap={4} style={{ paddingLeft: 12, marginTop: 8 }}>
+            <Flex
+              align="center"
+              gap={4}
+              style={{ paddingLeft: 12, marginTop: 8 }}
+            >
               <div style={{ width: 130 }}>当鼠标悬停并按下</div>
               <Form.Item name="hoverHotkey" noStyle>
                 <Select
@@ -608,12 +762,14 @@ const TranslationSettings: React.FC = () => {
               <Label>悬停翻译服务</Label>
               <Form.Item name="hoverTranslationService" noStyle>
                 <Select style={{ width: 200 }}>
-                  {providers.map(provider => (
-                    <Select.Option key={provider.id} value={provider.id}>{provider.name}</Select.Option>
+                  {providers.map((provider) => (
+                    <Select.Option key={provider.id} value={provider.id}>
+                      {provider.name}
+                    </Select.Option>
                   ))}
                   <Select.Option value="default">默认AI服务</Select.Option>
-          </Select>
-        </Form.Item>
+                </Select>
+              </Form.Item>
             </Flex>
           </StyledCard>
         </StyledSection>
@@ -638,7 +794,11 @@ const TranslationSettings: React.FC = () => {
                   允许在视频播放网站上控制字幕翻译功能
                 </Text>
               </Label>
-              <Form.Item name="enableVideoSubtitleTranslation" noStyle valuePropName="checked">
+              <Form.Item
+                name="enableVideoSubtitleTranslation"
+                noStyle
+                valuePropName="checked"
+              >
                 <Switch />
               </Form.Item>
             </Flex>
@@ -665,7 +825,11 @@ const TranslationSettings: React.FC = () => {
                   在任何网页的输入框中翻译并替换文本
                 </Text>
               </Label>
-              <Form.Item name="enableInputTranslation" noStyle valuePropName="checked">
+              <Form.Item
+                name="enableInputTranslation"
+                noStyle
+                valuePropName="checked"
+              >
                 <Switch />
               </Form.Item>
             </Flex>
@@ -674,164 +838,37 @@ const TranslationSettings: React.FC = () => {
       </Form>
 
       {/* 翻译服务提供商配置弹窗 */}
-      <Modal
-        title={currentProvider?.name + " 翻译配置"}
+      <ProviderConfigModal
         open={translationProviderModal}
+        provider={currentProvider}
         onCancel={() => setTranslationProviderModal(false)}
-        footer={null}
-        width={500}
-      >
-        <Form form={translationProviderForm} layout="vertical">
-          <Form.Item name="id" hidden>
-            <Input />
-          </Form.Item>
-
-          <Form.Item name="name" hidden>
-            <Input />
-        </Form.Item>
-
-        <Form.Item
-            name="apiKey"
-            label="API key"
-            rules={[{ required: true, message: '请输入API密钥' }]}
-          >
-            <Input.Password
-              placeholder="请输入您的API密钥"
-              iconRender={(visible) =>
-                visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
-              }
-            />
-          </Form.Item>
-
-          <Form.Item name="baseUrl" label="API代理URL（可选）">
-            <Input placeholder="https://api.provider.com/v1" />
-          </Form.Item>
-
-          <div
-            style={{
-              marginTop: 24,
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 8,
-            }}
-          >
-            <Button onClick={() => setTranslationProviderModal(false)}>
-              取消
-            </Button>
-            <Button type="primary" onClick={saveTranslationProviderSettings}>
-              保存
-            </Button>
-          </div>
-        </Form>
-      </Modal>
+        onSave={saveTranslationProviderSettings}
+      />
 
       {/* 添加翻译服务提供商弹窗 */}
-      <Modal
-        title="添加翻译服务提供商"
+      <AddProviderModal
         open={addProviderModalVisible}
         onCancel={() => setAddProviderModalVisible(false)}
-        footer={null}
-        width={500}
-      >
-        <Form form={addProviderForm} layout="vertical">
-          <Form.Item
-            name="name"
-            label="翻译服务名称"
-            rules={[{ required: true, message: '请输入翻译服务名称' }]}
-          >
-            <Input placeholder="例如: 自定义翻译服务" />
-        </Form.Item>
-
-        <Form.Item
-            name="apiKey"
-            label="API key"
-          >
-            <Input.Password
-              placeholder="请输入您的API密钥"
-              iconRender={(visible) =>
-                visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
-              }
-            />
-          </Form.Item>
-
-          <Form.Item name="baseUrl" label="API代理URL">
-            <Input placeholder="https://api.example.com/v1" />
-        </Form.Item>
-
-          <div
-            style={{
-              marginTop: 24,
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 8,
-            }}
-          >
-            <Button onClick={() => setAddProviderModalVisible(false)}>
-              取消
-            </Button>
-            <Button type="primary" onClick={handleAddTranslationProvider}>
-              添加
-            </Button>
-          </div>
-      </Form>
-      </Modal>
+        onAdd={handleAddTranslationProvider}
+      />
 
       {/* 自定义词典管理弹窗 */}
-      <Modal
-        title="自定义词典管理"
+      <CustomDictionaryModal
         open={customDictionaryModalVisible}
         onCancel={() => setCustomDictionaryModalVisible(false)}
-        footer={null}
-        width={700}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <Paragraph>
-            添加自定义词汇替换规则，翻译时会优先使用您定义的词汇。这对于保留专有名词、术语或自定义翻译特别有用。
-          </Paragraph>
+        onAdd={handleAddCustomDictionaryEntry}
+        onDelete={handleDeleteCustomDictionaryEntry}
+        dictionaryData={customDictionary}
+      />
 
-          <Flex style={{ marginTop: 16, marginBottom: 16 }} gap={8}>
-            <Input
-              placeholder="输入原文关键词"
-              value={customDictionaryKeyword}
-              onChange={(e) => setCustomDictionaryKeyword(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <Input
-              placeholder="输入替换的内容"
-              value={customDictionaryValue}
-              onChange={(e) => setCustomDictionaryValue(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAddCustomDictionaryEntry}
-            >
-              添加
-            </Button>
-          </Flex>
-
-          <Table
-            columns={customDictionaryColumns}
-            dataSource={customDictionaryTableData}
-            rowKey="key"
-            pagination={{ pageSize: 5 }}
-            locale={{ emptyText: '暂无自定义词汇' }}
-          />
-        </div>
-
-        <div
-          style={{
-            marginTop: 24,
-            display: 'flex',
-            justifyContent: 'flex-end',
-          }}
-        >
-          <Button type="primary" onClick={() => setCustomDictionaryModalVisible(false)}>
-            关闭
-          </Button>
-        </div>
-      </Modal>
+      {/* 自定义样式编辑弹窗 */}
+      <CustomStyleModal
+        open={customStyleModalVisible}
+        onCancel={() => setCustomStyleModalVisible(false)}
+        onSave={saveCustomStyle}
+        mode={customStyleEditorMode}
+        currentStyle={currentCustomStyle}
+      />
     </>
   );
 };
