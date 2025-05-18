@@ -1,6 +1,6 @@
-import { defineContentScript } from 'wxt/sandbox';
+import { defineContentScript } from '#imports';
 import { createRoot } from 'react-dom/client';
-import { createShadowRootUi } from 'wxt/client';
+import { createShadowRootUi } from '#imports';
 import App from './App';
 
 // 定义内容脚本

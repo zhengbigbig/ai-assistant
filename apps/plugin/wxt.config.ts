@@ -3,8 +3,10 @@ import path from 'path';
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
-  extensionApi: 'chrome',
   modules: ['@wxt-dev/module-react'],
+  webExt: {
+    startUrls: ["https://www.google.com/search?q=123456ss"],
+  },
   manifest: {
     name: 'AI Assistant',
     description: 'AI 助手浏览器插件，支持划词搜索、页面截图等功能',

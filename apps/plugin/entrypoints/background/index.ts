@@ -2,7 +2,7 @@
  * AI 助手浏览器扩展背景脚本
  * 处理插件安装、事件监听和侧边栏交互
  */
-import { defineBackground } from 'wxt/sandbox';
+import { defineBackground } from '#imports';
 import { TARGET_LANGUAGE_OPTIONS } from '../../constants/config';
 import { useConfigStore } from '../stores/configStore';
 import { resizeWindow } from './windowResizer';
