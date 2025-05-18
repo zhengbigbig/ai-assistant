@@ -249,14 +249,14 @@ export const specialRules = [
   {
     name: 'google',
     regex: '^https:\\/\\/www\\.google\\.',
-    // selectors: [
-    //   'h2',
-    //   'a h3',
-    //   "div[data-content-feature='1'] > div",
-    //   "a [aria-level='3']",
-    //   "a [aria-level='3'] + div",
-    //   '.Uroaid',
-    // ],
+    selectors: [
+      'h2',
+      'a h3',
+      "div[data-content-feature='1'] > div",
+      "a [aria-level='3']",
+      "a [aria-level='3'] + div",
+      '.Uroaid',
+    ],
     noTranslateSelectors: ['[role="navigation"]', '#searchform', '#sfooter'],
     detectLanguage: true,
   },

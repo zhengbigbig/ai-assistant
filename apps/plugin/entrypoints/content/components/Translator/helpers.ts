@@ -1,11 +1,17 @@
-import { AI_ASSISTANT_TRANSLATED, AI_ASSISTANT_TRANSLATED_CONTAINER, AI_ASSISTANT_TRANSLATED_WRAPPER, CUSTOM_LOADING_INJECT_STYLE, DisplayMode } from '../../../../constants/config';
-import { useConfigStore } from '../../../stores/configStore';
+import {
+  AI_ASSISTANT_TRANSLATED,
+  AI_ASSISTANT_TRANSLATED_CONTAINER,
+  AI_ASSISTANT_TRANSLATED_WRAPPER,
+  CUSTOM_LOADING_INJECT_STYLE,
+  DisplayMode,
+} from '@/constants/config';
+import { useConfigStore } from '@/entrypoints/stores/configStore';
 import {
   AttributeToTranslate,
   PieceToTranslate,
   useTranslationStore,
-} from '../../../stores/translationStore';
-import { languages } from '../../../../utils/languages';
+} from '@/entrypoints/stores/translationStore';
+import { languages } from '@/utils/languages';
 import {
   BLOCK_ELEMENTS,
   HTML_TAGS_INLINE_IGNORE,
@@ -432,12 +438,16 @@ const onlyContainsTextNodes = (element: Node): boolean => {
 };
 
 // 是否段落截断，双语对照情况，先处理样式
-const clearLineClampRestriction = (node:Node) => {
-  if (useConfigStore.getState().translation.displayMode === DisplayMode.DUAL && node instanceof HTMLElement) {
+const clearLineClampRestriction = (node: Node) => {
+  if (
+    useConfigStore.getState().translation.displayMode === DisplayMode.DUAL &&
+    node instanceof HTMLElement
+  ) {
     const computedStyle = window.getComputedStyle(node);
-    const lineClampValue = computedStyle.getPropertyValue('-webkit-line-clamp') ||
-                          computedStyle.getPropertyValue('line-clamp') ||
-                          '';
+    const lineClampValue =
+      computedStyle.getPropertyValue('-webkit-line-clamp') ||
+      computedStyle.getPropertyValue('line-clamp') ||
+      '';
     if (lineClampValue && lineClampValue !== 'none') {
       // 解除line-clamp限制
       node.style.setProperty('-webkit-line-clamp', 'unset');
@@ -445,7 +455,7 @@ const clearLineClampRestriction = (node:Node) => {
       node.style.maxHeight = 'unset';
     }
   }
-}
+};
 
 // 获取需要翻译的节点
 export const getNodesThatNeedToTranslate = async (
@@ -542,76 +552,75 @@ export const getNodesThatNeedToTranslate = async (
         }
       }
     }
+  }
+  // 使用TreeWalker遍历DOM树查找块级元素
+  const contentContainers = getContainers(currentRoot, pageSpecialConfig);
+
+  // 确定要遍历的容器
+  let containers: Element[] = [];
+  if (contentContainers && Array.isArray(contentContainers)) {
+    containers = contentContainers;
   } else {
-    // 使用TreeWalker遍历DOM树查找块级元素
-    const contentContainers = getContainers(currentRoot, pageSpecialConfig);
-
-    // 确定要遍历的容器
-    let containers: Element[] = [];
-    if (contentContainers && Array.isArray(contentContainers)) {
-      containers = contentContainers;
-    } else {
-      containers = [currentRoot];
-    }
-    // 遍历每个容器
-    for (const container of containers) {
-      // 记录已经接受的节点
-      const acceptedNodes = new Set();
-      // 创建TreeWalker，只关注元素节点
-      const treeWalker = document.createTreeWalker(
-        container,
-        NodeFilter.SHOW_ELEMENT,
-        {
-          acceptNode: (node) => {
-            // 检查是否是已接受节点的子节点
-            let parent = node.parentNode;
-            while (parent) {
-              if (acceptedNodes.has(parent)) {
-                return NodeFilter.FILTER_REJECT; // 拒绝已接受节点的子节点
-              }
-              parent = parent.parentNode;
+    containers = [currentRoot];
+  }
+  // 遍历每个容器
+  for (const container of containers) {
+    // 记录已经接受的节点
+    const acceptedNodes = new Set();
+    // 创建TreeWalker，只关注元素节点
+    const treeWalker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_ELEMENT,
+      {
+        acceptNode: (node) => {
+          // 检查是否是已接受节点的子节点
+          let parent = node.parentNode;
+          while (parent) {
+            if (acceptedNodes.has(parent)) {
+              return NodeFilter.FILTER_REJECT; // 拒绝已接受节点的子节点
             }
-            // 无效节点直接拒绝
-            if (!isValidNode(node as Element)) {
-              // 拒绝该节点及其所有子节点，完全跳过这个分支
-              return NodeFilter.FILTER_REJECT;
-            }
-            // 双语对照重写节点样式
-            clearLineClampRestriction(node);
-            // 块级节点，但子节点是文本，接受
-            if (
-              blockElementsList.includes(node.nodeName) &&
-              Array.from(node.childNodes).every(
-                (child) => child.nodeType === Node.TEXT_NODE
-              )
-            ) {
-              acceptedNodes.add(node);
-              return NodeFilter.FILTER_ACCEPT;
-            }
+            parent = parent.parentNode;
+          }
+          // 无效节点直接拒绝
+          if (!isValidNode(node as Element)) {
+            // 拒绝该节点及其所有子节点，完全跳过这个分支
+            return NodeFilter.FILTER_REJECT;
+          }
+          // 双语对照重写节点样式
+          clearLineClampRestriction(node);
+          // 块级节点，但子节点是文本，接受
+          if (
+            blockElementsList.includes(node.nodeName) &&
+            Array.from(node.childNodes).every(
+              (child) => child.nodeType === Node.TEXT_NODE
+            )
+          ) {
+            acceptedNodes.add(node);
+            return NodeFilter.FILTER_ACCEPT;
+          }
 
-            // 当前节点非块级节点，递归判断其子孙节点，是否都是行内元素且行内元素均只包含文本节点
-            if (
-              !blockElementsList.includes(node.nodeName) &&
-              onlyContainsTextNodes(node)
-            ) {
-              acceptedNodes.add(node);
-              return NodeFilter.FILTER_ACCEPT;
-            }
+          // 当前节点非块级节点，递归判断其子孙节点，是否都是行内元素且行内元素均只包含文本节点
+          if (
+            !blockElementsList.includes(node.nodeName) &&
+            onlyContainsTextNodes(node)
+          ) {
+            acceptedNodes.add(node);
+            return NodeFilter.FILTER_ACCEPT;
+          }
 
-            // 其他节点均跳过，继续递归
-            return NodeFilter.FILTER_SKIP;
-          },
-        }
-      );
-
-      // 遍历DOM树并收集符合条件的节点
-      let currentNode = treeWalker.nextNode();
-      while (currentNode) {
-        if (!isDuplicatedChild(allNodes, currentNode as Element)) {
-          allNodes.push(currentNode as Element);
-        }
-        currentNode = treeWalker.nextNode();
+          // 其他节点均跳过，继续递归
+          return NodeFilter.FILTER_SKIP;
+        },
       }
+    );
+
+    // 遍历DOM树并收集符合条件的节点
+    let currentNode = treeWalker.nextNode();
+    while (currentNode) {
+      if (!isDuplicatedChild(allNodes, currentNode as Element)) {
+        allNodes.push(currentNode as Element);
+      }
+      currentNode = treeWalker.nextNode();
     }
   }
 
@@ -1150,6 +1159,12 @@ export const translatePage = async () => {
   useTranslationStore.getState().setCurrentPageLanguage(targetLanguage);
   // 启用DOM变化监视器，用于检测动态添加的内容
   enableMutationObserver();
+  // 将自定义词典转换为压缩映射
+  const customDictionary =
+    useConfigStore.getState().translation.customDictionary;
+  Object.entries(customDictionary).forEach(([key], index) => {
+    compressionMap[index + 1] = key;
+  });
 
   // 开始动态翻译页面
   translateDynamically();
@@ -1213,17 +1228,22 @@ async function translateNewNodes() {
         continue;
 
       // 获取需要翻译的内容
-      const newPiecesToTranslate = (await getNodesThatNeedToTranslate(nn))
-        .reduce((acc, [node, copiedNode]) => {
-          return acc.concat(getPiecesToTranslate(copiedNode ?? node, node));
-        }, []);
+      const newPiecesToTranslate = (
+        await getNodesThatNeedToTranslate(nn)
+      ).reduce((acc, [node, copiedNode]) => {
+        return acc.concat(getPiecesToTranslate(copiedNode ?? node, node));
+      }, []);
 
       // 过滤掉已经存在于翻译状态中的节点
       for (const i in newPiecesToTranslate) {
         let finded = false;
 
         for (const ntt of useTranslationStore.getState().piecesToTranslate) {
-          if (ntt.nodes.some((n1) => newPiecesToTranslate[i].nodes.some((n2: Node) => n1 === n2))) {
+          if (
+            ntt.nodes.some((n1) =>
+              newPiecesToTranslate[i].nodes.some((n2: Node) => n1 === n2)
+            )
+          ) {
             finded = true;
           }
         }
@@ -1234,7 +1254,9 @@ async function translateNewNodes() {
             addLoadingIconToNode(node.originalElement);
           });
           // 添加到待翻译列表
-          useTranslationStore.getState().addPieceToTranslate(newPiecesToTranslate[i]);
+          useTranslationStore
+            .getState()
+            .addPieceToTranslate(newPiecesToTranslate[i]);
         }
       }
     }
@@ -1258,27 +1280,75 @@ async function handleCustomWords(translated: string, originalText: string) {
       translated = translated.replace(new RegExp(startMark0, 'g'), startMark);
       translated = translated.replace(new RegExp(endMark0, 'g'), endMark);
 
+      // 处理全角字符 - 转换常见的全角字符为半角字符
+      const fullWidthToHalfWidth = (str: string): string => {
+        // 全角转半角字符映射
+        const map: Record<string, string> = {
+          '＠': '@',
+          '％': '%',
+          '＃': '#',
+          '＄': '$',
+        };
+
+        let result = str;
+        for (const [fullWidth, halfWidth] of Object.entries(map)) {
+          result = result.replace(new RegExp(fullWidth, 'g'), halfWidth);
+        }
+        return result;
+      };
+
+      // 转换全角字符为半角字符
+      translated = fullWidthToHalfWidth(translated);
+
       while (true) {
+        // 寻找标记
         const startIndex = translated.indexOf(startMark);
         const endIndex = translated.indexOf(endMark);
+
         if (startIndex === -1 && endIndex === -1) {
+          break;
+        } else if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
+          // 处理不匹配的标记
+          console.warn('标记不匹配，跳过处理', startIndex, endIndex);
           break;
         } else {
           const placeholderText = translated.substring(
             startIndex + startMark.length,
             endIndex
           );
-          // At this point placeholderText is actually currentIndex , the real value is in compressionMap
+
           // 此时placeholderText实际上是currentIndex，真实值在compressionMap中
           const keyWord = handleHitKeywords(placeholderText, false);
-          if (keyWord === 'undefined') {
-            throw new Error('undefined');
+
+          // 安全检查
+          if (!keyWord || keyWord === 'undefined') {
+            // 尝试移除标记并继续处理
+            const frontPart = translated.substring(0, startIndex);
+            const backPart = translated.substring(endIndex + endMark.length);
+            translated = frontPart + placeholderText + backPart;
+            continue;
           }
+
+          // 准备替换
           let frontPart = translated.substring(0, startIndex);
           let backPart = translated.substring(endIndex + endMark.length);
-          let customValue = customDictionary[keyWord.toLowerCase()];
-          customValue = customValue === '' ? keyWord : customValue;
-          // Highlight custom words, make it have a space before and after it
+
+          // 寻找自定义词典中的匹配项
+          // 首先转换keyWord为小写
+          const keyWordLower = typeof keyWord === 'string' ? keyWord.toLowerCase() : String(keyWord).toLowerCase();
+
+          // 尝试找到精确匹配的词
+          let customValue = String(keyWord); // 默认使用原始关键词
+          let foundMatch = false;
+
+          for (const dictKey of Object.keys(customDictionary)) {
+            if (dictKey.toLowerCase() === keyWordLower) {
+              customValue = customDictionary[dictKey] || String(keyWord);
+              foundMatch = true;
+              break;
+            }
+          }
+
           // 高亮自定义词，在其前后添加空格
           frontPart = isPunctuationOrDelimiter(
             frontPart.charAt(frontPart.length - 1)
@@ -1288,6 +1358,7 @@ async function handleCustomWords(translated: string, originalText: string) {
           backPart = isPunctuationOrDelimiter(backPart.charAt(0))
             ? backPart
             : ' ' + backPart;
+
           translated = frontPart + customValue + backPart;
         }
       }
@@ -1466,8 +1537,6 @@ async function translateDynamically() {
   setTimeout(translateDynamically, 1500);
 }
 
-
-
 // 翻译属性
 function translateAttributes(
   attributesToTranslateNow: AttributeToTranslate[],
@@ -1534,10 +1603,9 @@ function filterKeywordsInText(textContext: string) {
     const sortedEntries = Object.entries(customDictionary).sort(
       (a, b) => b[0].length - a[0].length
     );
-
-    for (const keyWord of Object.keys(sortedEntries)) {
+    for (const [keyWord] of sortedEntries) {
       while (true) {
-        const index = textContext.toLowerCase().indexOf(keyWord);
+        const index = textContext.indexOf(keyWord);
         if (index === -1) {
           break;
         } else {
@@ -1581,16 +1649,17 @@ function filterKeywordsInText(textContext: string) {
   return textContext;
 }
 
+// number为索引从1开始自增，string为关键词
+const compressionMap: Record<number, string> = {};
 // True：将关键词存储在Map中并返回索引
 // False：通过索引提取关键词
 function handleHitKeywords(value: string, mode: boolean) {
-  const currentIndex = useTranslationStore.getState().currentIndex;
-  const compressionMap = useTranslationStore.getState().compressionMap;
   if (mode) {
-    useTranslationStore.getState().addCompressionMap(currentIndex + 1, value);
-    return String(currentIndex);
+    // 根据value在compressionMap中找到对应的索引
+    const index = Object.values(compressionMap).indexOf(value);
+    return String(index + 1);
   } else {
-    return String(compressionMap.get(Number(value)));
+    return String(compressionMap[Number(value)]);
   }
 }
 

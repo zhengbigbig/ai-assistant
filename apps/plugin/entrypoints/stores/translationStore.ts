@@ -1,4 +1,4 @@
-import { produce } from 'immer';
+import { enableMapSet, produce } from 'immer';
 import { create } from 'zustand';
 
 // 定义需要翻译的文本片段接口
@@ -56,23 +56,8 @@ export interface TranslationState {
   // 页面可见性
   pageIsVisible: boolean;
 
-  // 当前索引
-  currentIndex: number;
-
-  // 压缩映射
-  compressionMap: Map<number, string>;
-
   // 初始化上下文
   initCtx: () => void;
-
-  // 设置当前索引
-  setCurrentIndex: (index: number) => void;
-
-  // 设置压缩映射
-  setCompressionMap: (map: Map<number, string>) => void;
-
-  // 添加压缩映射
-  addCompressionMap: (key: number, value: string) => void;
 
   // 设置页面语言状态
   setPageLanguageState: (state: string) => void;
@@ -150,8 +135,6 @@ export const useTranslationStore = create<TranslationState>()((set) => ({
   newNodes: [],
   removedNodes: [],
   pageIsVisible: document.visibilityState === 'visible',
-  currentIndex: 0,
-  compressionMap: new Map(),
 
   // 设置上下文对象
   initCtx: () => {
@@ -166,21 +149,6 @@ export const useTranslationStore = create<TranslationState>()((set) => ({
       }));
     });
   },
-
-  // 设置当前索引
-  setCurrentIndex: (index: number) => set(produce((draft) => {
-    draft.currentIndex = index;
-  })),
-
-  // 设置压缩映射
-  setCompressionMap: (map: Map<number, string>) => set(produce((draft) => {
-    draft.compressionMap = map;
-  })),
-
-  // 添加压缩映射
-  addCompressionMap: (key: number, value: string) => set(produce((draft) => {
-    draft.compressionMap.set(key, value);
-  })),
 
   // 设置页面语言状态
   setPageLanguageState: (state) => set(produce((draft) => {
@@ -287,7 +255,5 @@ export const useTranslationStore = create<TranslationState>()((set) => ({
     draft.newNodes = [];
     draft.removedNodes = [];
     draft.fooCount += 1;
-    draft.currentIndex = 0;
-    draft.compressionMap = new Map();
   })),
 }));
