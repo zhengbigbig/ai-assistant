@@ -3,7 +3,7 @@
  */
 import { languages } from '../../../utils/languages';
 import { TranslationServiceFactory, TranslationServiceType } from './serviceFactory';
-import { OpenAIServiceParams, TranslationService } from './types';
+import { TranslationService } from './types';
 
 /**
  * 创建翻译服务
@@ -81,13 +81,6 @@ export const translationService: TranslationService = {
     return result[0][0];
   }
 };
-
-/**
- * 设置OpenAI配置
- */
-export function setOpenAIConfig(config: OpenAIServiceParams): void {
-  TranslationServiceFactory.setOpenAIConfig(config);
-}
 
 /**
  * 清除翻译服务缓存

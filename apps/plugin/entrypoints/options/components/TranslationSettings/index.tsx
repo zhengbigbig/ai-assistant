@@ -1,10 +1,28 @@
 import {
+  CUSTOM_STYLE_ELEMENT_ID,
+  DISPLAY_MODE_OPTIONS,
+  TARGET_LANGUAGE_OPTIONS,
+  TRANSLATION_HOTKEY_OPTIONS,
+} from '@/constants/config';
+import type {
+  CustomStyleConfig,
+  TranslationProviderType,
+  TranslationSettings as TranslationSettingsType
+} from '@/entrypoints/stores/configStore';
+import {
+  useConfigStore,
+  useTranslation,
+  useTranslationProviders,
+} from '@/entrypoints/stores/configStore';
+import { injectCustomStyleToHtml } from '@/utils/css';
+import {
   ControlOutlined,
   DeleteOutlined,
   EditOutlined,
   FormOutlined,
+  LockOutlined,
   PlusOutlined,
-  TranslationOutlined,
+  TranslationOutlined
 } from '@ant-design/icons';
 import {
   App,
@@ -15,34 +33,15 @@ import {
   Flex,
   Form,
   Input,
-  message,
-  Modal,
   Row,
   Select,
   Space,
   Switch,
   Tag,
   Tooltip,
-  Typography,
+  Typography
 } from 'antd';
 import React, { useEffect, useState } from 'react';
-import {
-  DISPLAY_MODE_OPTIONS,
-  TARGET_LANGUAGE_OPTIONS,
-  TRANSLATION_HOTKEY_OPTIONS,
-} from '@/constants/config';
-import type {
-  CustomStyleConfig,
-  ProviderType,
-  TranslationSettings as TranslationSettingsType,
-} from '@/entrypoints/stores/configStore';
-import {
-  useConfigStore,
-  useProviders,
-  useSelectedProvider,
-  useTranslation,
-} from '@/entrypoints/stores/configStore';
-import { injectCustomStyleToHtml } from '@/utils/css';
 import {
   Label,
   ProviderActions,
@@ -76,7 +75,7 @@ const TranslationSettings: React.FC = () => {
   const [forbiddenWebsite, setForbiddenWebsite] = useState<string>('');
   const [translationProviderModal, setTranslationProviderModal] =
     useState(false);
-  const [currentProvider, setCurrentProvider] = useState<ProviderType | null>(
+  const [currentProvider, setCurrentProvider] = useState<TranslationProviderType | null>(
     null
   );
   const [translationProviderForm] = Form.useForm();
@@ -109,18 +108,26 @@ const TranslationSettings: React.FC = () => {
     updateTranslation,
     addCustomDictionaryEntry,
     removeCustomDictionaryEntry,
-    addCustomStyle,
-    updateCustomStyle,
   } = useConfigStore();
-  const providers = useProviders();
-  const selectedProvider = useSelectedProvider();
+  const providers = useTranslationProviders();
 
   // 监听样式变化并注入
   useEffect(() => {
     if (currentCustomCss) {
       injectCustomStyleToHtml(currentCustomCss);
     }
-  }, [currentCustomCss]);
+  }, [currentCustomCss, displayStyle]);
+
+  // 初始化时加载样式
+  useEffect(() => {
+    // 确保组件挂载后加载一次样式
+    if (customStyles.length > 0 && displayStyle) {
+      const initialCss = customStyles.find((it) => it?.name === displayStyle)?.css;
+      if (initialCss) {
+        injectCustomStyleToHtml(initialCss);
+      }
+    }
+  }, []);
 
   // 确保enable开关使用默认值
   const formInitialValues: TranslationSettingsType = {
@@ -148,37 +155,7 @@ const TranslationSettings: React.FC = () => {
       };
       form.setFieldsValue(mergedValues);
     }
-
-    // 确保默认翻译服务存在
-    ensureDefaultTranslationServices();
   }, [form, translation]);
-
-  // 确保默认翻译服务存在
-  const ensureDefaultTranslationServices = () => {
-    const { providers, addProvider } = useConfigStore.getState();
-
-    // 检查是否存在谷歌翻译
-    if (!providers.some((p) => p.id === 'google')) {
-      addProvider({
-        id: 'google',
-        name: '谷歌翻译',
-        apiKey: '',
-        baseUrl: 'https://translate.googleapis.com/translate_a/single',
-        models: [],
-      });
-    }
-
-    // 检查是否存在智谱GLM翻译
-    if (!providers.some((p) => p.id === 'glm')) {
-      addProvider({
-        id: 'glm',
-        name: '智谱GLM翻译',
-        apiKey: '',
-        baseUrl: '',
-        models: [],
-      });
-    }
-  };
 
   // 保存设置
   const handleValuesChange = (changedValues: any, allValues: any) => {
@@ -228,6 +205,9 @@ const TranslationSettings: React.FC = () => {
         name: provider.name,
         apiKey: provider.apiKey,
         baseUrl: provider.baseUrl,
+        model: provider.model,
+        systemPrompt: provider.systemPrompt,
+        headers: provider.headers,
       });
       setTranslationProviderModal(true);
     }
@@ -240,14 +220,17 @@ const TranslationSettings: React.FC = () => {
   ) => {
     e.stopPropagation(); // 阻止事件冒泡
 
-    // 不允许删除默认的谷歌和智谱翻译
-    if (providerId === 'google' || providerId === 'glm') {
-      messageApi.warning('默认翻译服务不允许删除');
+    // 获取提供商信息
+    const provider = providers.find((p) => p.id === providerId);
+
+    // 不允许删除内置翻译服务
+    if (provider?.isBuiltIn) {
+      messageApi.warning('内置翻译服务不允许删除');
       return;
     }
 
-    const { removeProvider } = useConfigStore.getState();
-    removeProvider(providerId);
+    const { removeTranslationProvider } = useConfigStore.getState();
+    removeTranslationProvider(providerId);
 
     // 如果删除的是当前选中的翻译服务，则切换到谷歌翻译
     if (translation.translationService === providerId) {
@@ -271,15 +254,18 @@ const TranslationSettings: React.FC = () => {
   // 添加翻译服务提供商
   const handleAddTranslationProvider = () => {
     addProviderForm.validateFields().then((values) => {
-      const { addProvider } = useConfigStore.getState();
+      const { addTranslationProvider } = useConfigStore.getState();
       const newProviderId = 'translation-' + Date.now().toString();
 
-      addProvider({
+      addTranslationProvider({
         id: newProviderId,
         name: values.name,
         apiKey: values.apiKey || '',
         baseUrl: values.baseUrl || '',
-        models: [],
+        model: values.model || '',
+        systemPrompt: values.systemPrompt || '',
+        headers: values.headers || {},
+        isBuiltIn: false // 用户添加的服务不是内置服务
       });
 
       messageApi.success('翻译服务提供商已添加');
@@ -292,11 +278,21 @@ const TranslationSettings: React.FC = () => {
   const saveTranslationProviderSettings = () => {
     translationProviderForm.validateFields().then((values) => {
       if (currentProvider) {
-        // 这里使用configStore中的updateProvider方法更新提供商信息
-        const { updateProvider } = useConfigStore.getState();
-        updateProvider(currentProvider.id, {
+        // 检查是否为内置服务提供商
+        if (currentProvider.isBuiltIn) {
+          messageApi.warning('内置翻译服务不允许修改配置');
+          setTranslationProviderModal(false);
+          return;
+        }
+
+        // 这里使用configStore中的updateTranslationProvider方法更新提供商信息
+        const { updateTranslationProvider } = useConfigStore.getState();
+        updateTranslationProvider(currentProvider.id, {
           apiKey: values.apiKey,
           baseUrl: values.baseUrl,
+          model: values.model,
+          systemPrompt: values.systemPrompt,
+          headers: values.headers
         });
         messageApi.success('翻译服务提供商设置已保存');
         setTranslationProviderModal(false);
@@ -339,14 +335,14 @@ const TranslationSettings: React.FC = () => {
   };
 
   // 渲染提供商图标
-  const renderProviderLogo = (providerName: string) => {
+  const renderProviderLogo = (providerName: string, isBuiltIn = false) => {
     // 显示provider名称的第一个字母作为logo
     return (
       <div
         style={{
           width: 24,
           height: 24,
-          backgroundColor: '#1890ff',
+          backgroundColor: isBuiltIn ? '#52c41a' : '#1890ff',
           color: 'white',
           borderRadius: '50%',
           display: 'flex',
@@ -400,6 +396,9 @@ const TranslationSettings: React.FC = () => {
         displayStyle: newStyle.name,
       });
 
+      // 立即应用新样式
+      injectCustomStyleToHtml(values.css);
+
       messageApi.success('自定义样式已保存');
     } else if (currentCustomStyle) {
       // 检查是否修改了名称且新名称已存在
@@ -427,6 +426,11 @@ const TranslationSettings: React.FC = () => {
         });
       }
 
+      // 如果当前样式正在使用，立即应用更新后的样式
+      if (displayStyle === currentCustomStyle.name || displayStyle === values.name) {
+        injectCustomStyleToHtml(values.css);
+      }
+
       messageApi.success('自定义样式已更新');
     }
 
@@ -439,8 +443,41 @@ const TranslationSettings: React.FC = () => {
       title: '确认删除',
       content: '确定要删除这个自定义样式吗？',
       onOk: () => {
-        const { removeCustomStyle } = useConfigStore.getState();
+        const { removeCustomStyle, updateTranslation } = useConfigStore.getState();
+
+        // 检查是否删除的是当前使用的样式
+        const isCurrentStyle = displayStyle === styleName;
+
+        // 删除样式
         removeCustomStyle(styleName);
+
+        // 如果删除的是当前样式，则切换到第一个可用样式或默认样式
+        if (isCurrentStyle) {
+          // 获取最新的样式列表
+          const { customStyles } = useConfigStore.getState().translation;
+
+          // 选择新的样式
+          if (customStyles && customStyles.length > 0) {
+            const newStyleName = customStyles[0].name;
+            updateTranslation({ displayStyle: newStyleName });
+
+            // 应用新样式
+            const newCss = customStyles[0].css;
+            if (newCss) {
+              injectCustomStyleToHtml(newCss);
+            }
+          } else {
+            // 如果没有可用样式，使用默认样式
+            updateTranslation({ displayStyle: 'underline' });
+
+            // 清除自定义样式
+            const styleElement = document.querySelector(`[data-main-id="${CUSTOM_STYLE_ELEMENT_ID}"]`);
+            if (styleElement) {
+              styleElement.remove();
+            }
+          }
+        }
+
         messageApi.success('自定义样式已删除');
       },
     });
@@ -452,8 +489,20 @@ const TranslationSettings: React.FC = () => {
       title: '确认重置样式',
       content: '将重置所有样式',
       onOk: () => {
-        const { resetAllCustomStyles } = useConfigStore.getState();
+        const { resetAllCustomStyles, updateTranslation } = useConfigStore.getState();
+
+        // 重置所有样式
         resetAllCustomStyles();
+
+        // 更新为默认样式
+        updateTranslation({ displayStyle: 'underline' });
+
+        // 清除自定义样式
+        const styleElement = document.querySelector(`[data-main-id="${CUSTOM_STYLE_ELEMENT_ID}"]`);
+        if (styleElement) {
+          styleElement.remove();
+        }
+
         messageApi.success('样式已重置');
       },
     });
@@ -495,32 +544,56 @@ const TranslationSettings: React.FC = () => {
                     >
                       <ProviderInfo>
                         <ProviderLogo>
-                          {renderProviderLogo(provider.name)}
+                          {renderProviderLogo(provider.name, provider.isBuiltIn)}
                         </ProviderLogo>
-                        <ProviderName>{provider.name}</ProviderName>
+                        <ProviderName>
+                          {provider.name}
+                          {provider.isBuiltIn && (
+                            <Tooltip title="系统内置翻译服务，不可修改或删除">
+                              <Tag color="success" style={{ marginLeft: 8, fontSize: '12px' }}>
+                                内置
+                              </Tag>
+                            </Tooltip>
+                          )}
+                        </ProviderName>
                       </ProviderInfo>
                       <ProviderActions>
-                        <Button
-                          type="primary"
-                          size="small"
-                          onClick={(e) =>
-                            handleTranslationProviderConfig(e, provider.id)
-                          }
+                        {provider.isBuiltIn ? (
+                          <Tooltip title="内置翻译服务不允许修改配置">
+                            <Button
+                              type="primary"
+                              size="small"
+                              icon={<LockOutlined />}
+                              disabled
+                            >
+                              设置
+                            </Button>
+                          </Tooltip>
+                        ) : (
+                          <Button
+                            type="primary"
+                            size="small"
+                            onClick={(e) =>
+                              handleTranslationProviderConfig(e, provider.id)
+                            }
+                          >
+                            设置
+                          </Button>
+                        )}
+                        <Tooltip
+                          title={provider.isBuiltIn ? "内置翻译服务不允许删除" : "删除此翻译服务"}
                         >
-                          设置
-                        </Button>
-                        <Button
-                          danger
-                          type="text"
-                          size="small"
-                          icon={<DeleteOutlined />}
-                          onClick={(e) =>
-                            handleDeleteTranslationProvider(e, provider.id)
-                          }
-                          disabled={
-                            provider.id === 'google' || provider.id === 'glm'
-                          }
-                        />
+                          <Button
+                            danger
+                            type="text"
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            onClick={(e) =>
+                              handleDeleteTranslationProvider(e, provider.id)
+                            }
+                            disabled={provider.isBuiltIn}
+                          />
+                        </Tooltip>
                       </ProviderActions>
                     </ProviderItem>
                   </Col>

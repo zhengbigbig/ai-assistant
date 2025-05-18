@@ -1,4 +1,4 @@
-import { AI_ASSISTANT_TRANSLATED, AI_ASSISTANT_TRANSLATED_CONTAINER, AI_ASSISTANT_TRANSLATED_WRAPPER, DisplayMode } from '../../../../constants/config';
+import { AI_ASSISTANT_TRANSLATED, AI_ASSISTANT_TRANSLATED_CONTAINER, AI_ASSISTANT_TRANSLATED_WRAPPER, CUSTOM_LOADING_INJECT_STYLE, DisplayMode } from '../../../../constants/config';
 import { useConfigStore } from '../../../stores/configStore';
 import {
   AttributeToTranslate,
@@ -1091,17 +1091,21 @@ export const addLoadingIconToNode = (node: Element) => {
   `;
 
   // 添加旋转动画样式，使loading图标旋转起来
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes ai-assistant-rotate {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-    .ai-assistant-loading-icon svg {
-      animation: ai-assistant-rotate 1s linear infinite;
-    }
-  `;
-  document.head.appendChild(style);
+  // 检查是否已注入样式，避免重复注入
+  if (!document.getElementById(CUSTOM_LOADING_INJECT_STYLE)) {
+    const style = document.createElement('style');
+    style.id = CUSTOM_LOADING_INJECT_STYLE;
+    style.textContent = `
+      @keyframes ai-assistant-rotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .ai-assistant-loading-icon svg {
+        animation: ai-assistant-rotate 1s linear infinite;
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
   // 将loading图标插入到其最后子节点后
   node.appendChild(loadingIcon);

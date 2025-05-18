@@ -5,6 +5,9 @@ import { createBaseTranslationService } from './baseService';
 import { escapeHTML, unescapeHTML } from './utils';
 import { TranslationServiceProvider } from './types';
 
+// 默认的 Google 翻译 API 地址
+const DEFAULT_BASE_URL = 'https://translate.googleapis.com/translate_a/t?anno=3&client=te&v=1.0&format=html';
+
 /**
  * Google翻译TKK值
  */
@@ -107,10 +110,12 @@ function calcHash(query: string): string {
 /**
  * 创建Google翻译服务
  */
-export function createGoogleTranslationService(): TranslationServiceProvider {
+export function createGoogleTranslationService(
+  baseUrl?: string
+): TranslationServiceProvider {
   return createBaseTranslationService({
     serviceName: 'google',
-    baseURL: 'https://translate.googleapis.com/translate_a/t?anno=3&client=te&v=1.0&format=html',
+    baseURL: baseUrl || DEFAULT_BASE_URL,
     xhrMethod: 'POST',
     transformRequest: function(sourceArray) {
       sourceArray = sourceArray.map((text) => escapeHTML(text));

@@ -159,7 +159,6 @@ export const useTranslationStore = create<TranslationState>()((set) => ({
     chrome.runtime.sendMessage({
       action: 'getCtx',
     }, (response) => {
-      console.log('response', response);
       // 使用单独的 set 调用更新状态，而不是在异步回调中修改 draft
       set(state => ({
         ...state,

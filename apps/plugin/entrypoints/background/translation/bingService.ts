@@ -5,6 +5,9 @@ import { createBaseTranslationService } from './baseService';
 import { escapeHTML, unescapeHTML } from './utils';
 import { TranslationServiceProvider } from './types';
 
+// 默认的 Bing 翻译 API 地址
+const DEFAULT_BASE_URL = 'https://www.bing.com/ttranslatev3?isVertical=1';
+
 /**
  * Bing翻译服务SID管理
  */
@@ -107,10 +110,12 @@ async function findSID(): Promise<void> {
 /**
  * 创建Bing翻译服务
  */
-export function createBingTranslationService(): TranslationServiceProvider {
+export function createBingTranslationService(
+  baseUrl?: string
+): TranslationServiceProvider {
   const baseService = createBaseTranslationService({
     serviceName: 'bing',
-    baseURL: 'https://www.bing.com/ttranslatev3?isVertical=1',
+    baseURL: baseUrl || DEFAULT_BASE_URL,
     xhrMethod: 'POST',
     transformRequest: function(sourceArray) {
       return sourceArray

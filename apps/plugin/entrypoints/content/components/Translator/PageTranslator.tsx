@@ -20,6 +20,8 @@ import {
   restorePage,
   translatePage,
 } from './helpers';
+import { CUSTOM_STYLE_ELEMENT_ID } from '../../../../constants/config';
+import { injectCustomStyleToHtml } from '@/utils/css';
 
 const CloseIcon = styled(CloseCircleOutlined)`
   color: rgba(0, 0, 0, 0.45);
@@ -35,12 +37,11 @@ const CloseIcon = styled(CloseCircleOutlined)`
 const PageTranslator: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [settingOpen, setSettingOpen] = useState(false);
-  // 翻译状态
-  const [isTranslating, setIsTranslating] = useState(false);
 
   // 从store获取翻译设置
   const translation = useTranslation();
-  const { forbiddenWebsites } = translation;
+  const { forbiddenWebsites, displayStyle, customStyles } = translation;
+  const currentCustomStyle = customStyles?.find(c=>c?.name === displayStyle)?.css
 
   // ctx上下文
   const ctx = useTranslationStore((state) => state.ctx);
@@ -64,16 +65,28 @@ const PageTranslator: React.FC = () => {
   useEffect(() => {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === 'translatePage') {
+        // 翻译页面前更新样式
+        injectCustomStyleToHtml(currentCustomStyle || '');
         translatePage();
       }
     });
   }, []);
+
+  // 监听自定义样式变更
+  useEffect(() => {
+    // 当自定义样式或显示样式变更时，更新注入的样式
+    injectCustomStyleToHtml(currentCustomStyle || '');
+  }, [displayStyle, customStyles]);
 
   // 初始化
   useEffect(() => {
     // 初始化上下文
     useTranslationStore.getState().initCtx();
     useTranslationStore.getState().resetTranslationState();
+
+    // 初始注入自定义样式
+    injectCustomStyleToHtml(currentCustomStyle || '');
+
     // 1. 当前窗口是顶层窗口
     if (window.self === window.top) {
       const onTabVisible = function () {
@@ -259,10 +272,13 @@ const PageTranslator: React.FC = () => {
         onMouseLeave={() => setSettingOpen(false)}
         icon={isTranslated ? <TranslationOutlined /> : <TranslationOutlined />}
         onClick={() => {
-          console.log('isTranslated', isTranslated);
           if (isTranslated) {
+            // 恢复页面前更新样式
+            injectCustomStyleToHtml(currentCustomStyle || '');
             restorePage();
           } else {
+            // 翻译页面前更新样式
+            injectCustomStyleToHtml(currentCustomStyle || '');
             translatePage();
           }
         }}

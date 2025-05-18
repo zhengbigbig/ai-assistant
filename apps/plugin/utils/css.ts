@@ -40,9 +40,9 @@ export const updateCssColor = (
 };
 
 // 注入自定义样式到HTML
-export const injectCustomStyleToHtml = (css: string) => {
+export const injectCustomStyleToHtml = (css: string, id = CUSTOM_STYLE_ELEMENT_ID) => {
   // 检查是否已存在样式元素
-  let styleElement = document.getElementById(CUSTOM_STYLE_ELEMENT_ID);
+  let styleElement = document.getElementById(id);
 
   // 如果不存在则创建
   if (!styleElement) {

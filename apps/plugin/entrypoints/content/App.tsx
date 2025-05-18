@@ -17,7 +17,7 @@ import '../../styles/global.css';
 function App({ shadowRoot }: { shadowRoot: ShadowRoot }) {
   console.log('App mounted');
   return (
-    <StyleSheetManager target={shadowRoot} enableVendorPrefixes>
+    <StyleSheetManager target={shadowRoot}>
       <StyleProvider hashPriority="low" container={shadowRoot || undefined}>
         <ConfigProvider
           locale={zhCN}

@@ -5,6 +5,9 @@ import { createBaseTranslationService } from './baseService';
 import { escapeHTML, unescapeHTML } from './utils';
 import { TranslationServiceProvider } from './types';
 
+// 默认的 Yandex 翻译 API 地址
+const DEFAULT_BASE_URL = 'https://translate.yandex.net/api/v1/tr.json/translate?srv=tr-url-widget';
+
 /**
  * Yandex翻译服务SID管理
  */
@@ -77,10 +80,12 @@ async function findSID(): Promise<void> {
 /**
  * 创建Yandex翻译服务
  */
-export function createYandexTranslationService(): TranslationServiceProvider {
+export function createYandexTranslationService(
+  baseUrl?: string
+): TranslationServiceProvider {
   const baseService = createBaseTranslationService({
     serviceName: 'yandex',
-    baseURL: 'https://translate.yandex.net/api/v1/tr.json/translate?srv=tr-url-widget',
+    baseURL: baseUrl || DEFAULT_BASE_URL,
     xhrMethod: 'GET',
     transformRequest: function(sourceArray) {
       return sourceArray

@@ -5245,16 +5245,12 @@ export const languages = {
     serviceName: string,
     forPageTranslation = false
   ) => {
+    if (!Object.keys(SUPPORTED_LANGUAGES).includes(serviceName)) {
+      return serviceName;
+    }
     const alternatives = new Map();
     const pageTranslationServices = ["google", "yandex"];
     lang = languages.fixTLanguageCode(lang) || "und";
-    if (!SUPPORTED_LANGUAGES[serviceName as keyof typeof SUPPORTED_LANGUAGES])
-      return pageTranslationServices[0];
-    if (
-      forPageTranslation &&
-      pageTranslationServices.indexOf(serviceName) === -1
-    )
-      serviceName = pageTranslationServices[0];
     if (SUPPORTED_LANGUAGES[serviceName as keyof typeof SUPPORTED_LANGUAGES].indexOf(lang) !== -1)
       return serviceName;
     for (const sn in SUPPORTED_LANGUAGES) {
@@ -5267,7 +5263,7 @@ export const languages = {
         return sn;
       }
     }
-    return pageTranslationServices[0];
+    return serviceName;
   },
   codeToLanguage: (langCode: string) => {
     if (langCode === "und") {

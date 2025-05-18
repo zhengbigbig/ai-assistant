@@ -2,8 +2,15 @@ import { create } from 'zustand';
 import { persist, PersistOptions } from 'zustand/middleware';
 import { produce } from 'immer';
 import syncStorageAdapter from './storage';
-import { TargetLanguage, DisplayMode, TranslationHotkey, DEFAULT_CUSTOM_STYLE_TEMPLATES } from '../../constants/config';
-import { CONFIG_STORAGE_KEY } from '../../constants/key';
+import {
+  TargetLanguage,
+  DisplayMode,
+  TranslationHotkey,
+  DEFAULT_CUSTOM_STYLE_TEMPLATES,
+  DEFAULT_OPENAI_MODEL_PROVIDER_CONFIG,
+  DEFAULT_TRANSLATION_PROVIDERS,
+} from '../../constants/config';
+import { CONFIG_STORAGE_KEY, FREE_OPENAI_API_KEY } from '../../constants/key';
 
 // 定义模型类型接口
 export interface ModelType {
@@ -21,6 +28,18 @@ export interface ProviderType {
   apiKey: string;
   baseUrl: string;
   models: ModelType[];
+}
+
+// 翻译服务商接口类型
+export interface TranslationProviderType {
+  id: string;
+  name: string;
+  apiKey?: string;
+  baseUrl: string;
+  model?: string;
+  isBuiltIn: boolean;
+  systemPrompt?: string;
+  headers?: Record<string, string>;
 }
 
 // 外观设置接口
@@ -134,6 +153,9 @@ export interface ConfigState {
   providers: ProviderType[];
   selectedProvider: string | null;
 
+  // 翻译服务提供商
+  translationProviders: TranslationProviderType[];
+
   // 外观设置
   appearance: AppearanceSettings;
 
@@ -169,9 +191,17 @@ export interface ConfigState {
 
   // 模型操作
   addModel: (providerId: string, model: ModelType) => void;
-  updateModel: (providerId: string, modelId: string, updates: Partial<ModelType>) => void;
+  updateModel: (
+    providerId: string,
+    modelId: string,
+    updates: Partial<ModelType>
+  ) => void;
   removeModel: (providerId: string, modelId: string) => void;
-  toggleModelEnabled: (providerId: string, modelId: string, enabled: boolean) => void;
+  toggleModelEnabled: (
+    providerId: string,
+    modelId: string,
+    enabled: boolean
+  ) => void;
 
   // 外观设置操作
   updateAppearance: (settings: Partial<AppearanceSettings>) => void;
@@ -186,7 +216,9 @@ export interface ConfigState {
   updateTextSelection: (settings: Partial<TextSelectionSettings>) => void;
 
   // 键盘快捷键设置操作
-  updateKeyboardShortcuts: (settings: Partial<KeyboardShortcutsSettings>) => void;
+  updateKeyboardShortcuts: (
+    settings: Partial<KeyboardShortcutsSettings>
+  ) => void;
 
   // 提示词操作
   updatePromptWords: (settings: Partial<PromptWordsSettings>) => void;
@@ -212,11 +244,20 @@ export interface ConfigState {
 
   // 自定义样式操作
   addCustomStyle: (style: CustomStyleConfig, addToFront?: boolean) => void;
-  updateCustomStyle: (name: string, updates: Partial<CustomStyleConfig>) => void;
+  updateCustomStyle: (
+    name: string,
+    updates: Partial<CustomStyleConfig>
+  ) => void;
   removeCustomStyle: (name: string) => void;
-  resetCustomStyle: (name: string) => void;
-  // 重置所有自定义样式
   resetAllCustomStyles: () => void;
+
+  // 翻译提供商操作
+  addTranslationProvider: (provider: TranslationProviderType) => void;
+  updateTranslationProvider: (
+    id: string,
+    updates: Partial<TranslationProviderType>
+  ) => void;
+  removeTranslationProvider: (id: string) => void;
 }
 
 // 创建持久化的zustand store
@@ -224,44 +265,11 @@ export const useConfigStore = create<ConfigState>()(
   persist(
     (set, get) => ({
       // 初始状态
-      providers: [
-        {
-          id: 'openai',
-          name: 'OpenAI',
-          apiKey: '',
-          baseUrl: 'https://api.openai.com/v1',
-          models: [
-            { id: 'o3-mini', name: 'o3-mini', value: 'gpt-3.5-turbo', description: '适合简单对话', enabled: true },
-            { id: 'o1-mini', name: 'o1-mini', value: 'gpt-3.5-turbo', description: 'OpenAI轻量版', enabled: true },
-            { id: 'o1', name: 'o1', value: 'gpt-4', description: 'OpenAI最强大模型', enabled: true },
-            { id: 'o1-preview', name: 'o1-preview', value: 'gpt-3.5-turbo', description: '预览版本', enabled: true },
-            { id: 'gpt-4o-mini', name: 'gpt-4o-mini', value: 'gpt-4', description: 'GPT-4o轻量版', enabled: true },
-            { id: 'gpt-4o-2024-11-20', name: 'gpt-4o-2024-11-20', value: 'gpt-4', description: '最新版本', enabled: true },
-          ],
-        },
-        {
-          id: 'deepseek',
-          name: 'DeepSeek',
-          apiKey: '',
-          baseUrl: '',
-          models: [],
-        },
-        {
-          id: 'groq',
-          name: 'Groq',
-          apiKey: '',
-          baseUrl: '',
-          models: [],
-        },
-        {
-          id: 'ollama',
-          name: 'Ollama',
-          apiKey: '',
-          baseUrl: '',
-          models: [],
-        },
-      ],
-      selectedProvider: 'openai',
+      providers: [DEFAULT_OPENAI_MODEL_PROVIDER_CONFIG],
+      selectedProvider: DEFAULT_OPENAI_MODEL_PROVIDER_CONFIG.id,
+
+      // 翻译服务提供商初始化
+      translationProviders: DEFAULT_TRANSLATION_PROVIDERS,
 
       // 外观设置默认值
       appearance: {
@@ -308,15 +316,78 @@ export const useConfigStore = create<ConfigState>()(
         enablePromptSuggestions: true,
         showPromptShortcuts: true,
         promptWords: [
-          { id: '1', name: '翻译成中文', content: '翻译以下内容到中文', category: '翻译', order: 0, scenes: ['聊天/提问', '阅读'] },
-          { id: '2', name: '内容总结', content: '总结以下内容的要点', category: '总结', order: 1, scenes: ['聊天/提问', '阅读'] },
-          { id: '3', name: '改善写作', content: '改善以下写作', category: '改善写作', order: 2, scenes: ['写作'] },
-          { id: '4', name: '语法纠正', content: '纠正语法错误', category: '纠正语法', order: 3, scenes: ['写作'] },
-          { id: '5', name: '问题回答', content: '回答此问题', category: '回答此问题', order: 4, scenes: ['聊天/提问'] },
-          { id: '6', name: '代码解释', content: '解释代码', category: '解释代码', order: 5, scenes: ['聊天/提问', '阅读'] },
-          { id: '7', name: '行动事项', content: '列出行动事项', category: '列出行动事项', order: 6, scenes: ['阅读'] },
-          { id: '8', name: '内容精简', content: '压缩长度', category: '压缩长度', order: 7, scenes: ['写作'] },
-          { id: '9', name: '内容扩展', content: '扩展长度', category: '扩展长度', order: 8, scenes: ['写作'] },
+          {
+            id: '1',
+            name: '翻译成中文',
+            content: '翻译以下内容到中文',
+            category: '翻译',
+            order: 0,
+            scenes: ['聊天/提问', '阅读'],
+          },
+          {
+            id: '2',
+            name: '内容总结',
+            content: '总结以下内容的要点',
+            category: '总结',
+            order: 1,
+            scenes: ['聊天/提问', '阅读'],
+          },
+          {
+            id: '3',
+            name: '改善写作',
+            content: '改善以下写作',
+            category: '改善写作',
+            order: 2,
+            scenes: ['写作'],
+          },
+          {
+            id: '4',
+            name: '语法纠正',
+            content: '纠正语法错误',
+            category: '纠正语法',
+            order: 3,
+            scenes: ['写作'],
+          },
+          {
+            id: '5',
+            name: '问题回答',
+            content: '回答此问题',
+            category: '回答此问题',
+            order: 4,
+            scenes: ['聊天/提问'],
+          },
+          {
+            id: '6',
+            name: '代码解释',
+            content: '解释代码',
+            category: '解释代码',
+            order: 5,
+            scenes: ['聊天/提问', '阅读'],
+          },
+          {
+            id: '7',
+            name: '行动事项',
+            content: '列出行动事项',
+            category: '列出行动事项',
+            order: 6,
+            scenes: ['阅读'],
+          },
+          {
+            id: '8',
+            name: '内容精简',
+            content: '压缩长度',
+            category: '压缩长度',
+            order: 7,
+            scenes: ['写作'],
+          },
+          {
+            id: '9',
+            name: '内容扩展',
+            content: '扩展长度',
+            category: '扩展长度',
+            order: 8,
+            scenes: ['写作'],
+          },
         ],
       },
 
@@ -350,222 +421,280 @@ export const useConfigStore = create<ConfigState>()(
         articleAnswerDisplay: 'always',
         showSidePanel: true,
         sidePanelPosition: 'right',
-        chatLanguage: 'zh-CN'
+        chatLanguage: 'zh-CN',
       },
 
       // 账户信息 - 默认为null
       account: null,
 
       // 提供商操作
-      addProvider: (provider: ProviderType) => set(
-        produce((state: ConfigState) => {
-          state.providers.push(provider);
-        })
-      ),
+      addProvider: (provider: ProviderType) =>
+        set(
+          produce((state: ConfigState) => {
+            state.providers.push(provider);
+          })
+        ),
 
-      updateProvider: (id: string, updates: Partial<ProviderType>) => set(
-        produce((state: ConfigState) => {
-          const providerIndex = state.providers.findIndex((p: ProviderType) => p.id === id);
-          if (providerIndex !== -1) {
-            state.providers[providerIndex] = {
-              ...state.providers[providerIndex],
-              ...updates
-            };
-          }
-        })
-      ),
+      updateProvider: (id: string, updates: Partial<ProviderType>) =>
+        set(
+          produce((state: ConfigState) => {
+            const providerIndex = state.providers.findIndex(
+              (p: ProviderType) => p.id === id
+            );
+            if (providerIndex !== -1) {
+              state.providers[providerIndex] = {
+                ...state.providers[providerIndex],
+                ...updates,
+              };
+            }
+          })
+        ),
 
-      removeProvider: (id: string) => set(
-        produce((state: ConfigState) => {
-          state.providers = state.providers.filter((p: ProviderType) => p.id !== id);
-          if (state.selectedProvider === id) {
-            state.selectedProvider = state.providers.length > 0 ? state.providers[0].id : null;
-          }
-        })
-      ),
+      removeProvider: (id: string) =>
+        set(
+          produce((state: ConfigState) => {
+            state.providers = state.providers.filter(
+              (p: ProviderType) => p.id !== id
+            );
+            if (state.selectedProvider === id) {
+              state.selectedProvider =
+                state.providers.length > 0 ? state.providers[0].id : null;
+            }
+          })
+        ),
 
       setSelectedProvider: (id: string | null) => set({ selectedProvider: id }),
 
       // 模型操作
-      addModel: (providerId: string, model: ModelType) => set(
-        produce((state: ConfigState) => {
-          const provider = state.providers.find((p: ProviderType) => p.id === providerId);
-          if (provider) {
-            provider.models.push(model);
-          }
-        })
-      ),
-
-      updateModel: (providerId: string, modelId: string, updates: Partial<ModelType>) => set(
-        produce((state: ConfigState) => {
-          const provider = state.providers.find((p: ProviderType) => p.id === providerId);
-          if (provider) {
-            const modelIndex = provider.models.findIndex((m: ModelType) => m.id === modelId);
-            if (modelIndex !== -1) {
-              provider.models[modelIndex] = {
-                ...provider.models[modelIndex],
-                ...updates
-              };
+      addModel: (providerId: string, model: ModelType) =>
+        set(
+          produce((state: ConfigState) => {
+            const provider = state.providers.find(
+              (p: ProviderType) => p.id === providerId
+            );
+            if (provider) {
+              provider.models.push(model);
             }
-          }
-        })
-      ),
+          })
+        ),
 
-      removeModel: (providerId: string, modelId: string) => set(
-        produce((state: ConfigState) => {
-          const provider = state.providers.find((p: ProviderType) => p.id === providerId);
-          if (provider) {
-            provider.models = provider.models.filter((m: ModelType) => m.id !== modelId);
-          }
-        })
-      ),
-
-      toggleModelEnabled: (providerId: string, modelId: string, enabled: boolean) => set(
-        produce((state: ConfigState) => {
-          const provider = state.providers.find((p: ProviderType) => p.id === providerId);
-          if (provider) {
-            const model = provider.models.find((m: ModelType) => m.id === modelId);
-            if (model) {
-              model.enabled = enabled;
+      updateModel: (
+        providerId: string,
+        modelId: string,
+        updates: Partial<ModelType>
+      ) =>
+        set(
+          produce((state: ConfigState) => {
+            const provider = state.providers.find(
+              (p: ProviderType) => p.id === providerId
+            );
+            if (provider) {
+              const modelIndex = provider.models.findIndex(
+                (m: ModelType) => m.id === modelId
+              );
+              if (modelIndex !== -1) {
+                provider.models[modelIndex] = {
+                  ...provider.models[modelIndex],
+                  ...updates,
+                };
+              }
             }
-          }
-        })
-      ),
+          })
+        ),
+
+      removeModel: (providerId: string, modelId: string) =>
+        set(
+          produce((state: ConfigState) => {
+            const provider = state.providers.find(
+              (p: ProviderType) => p.id === providerId
+            );
+            if (provider) {
+              provider.models = provider.models.filter(
+                (m: ModelType) => m.id !== modelId
+              );
+            }
+          })
+        ),
+
+      toggleModelEnabled: (
+        providerId: string,
+        modelId: string,
+        enabled: boolean
+      ) =>
+        set(
+          produce((state: ConfigState) => {
+            const provider = state.providers.find(
+              (p: ProviderType) => p.id === providerId
+            );
+            if (provider) {
+              const model = provider.models.find(
+                (m: ModelType) => m.id === modelId
+              );
+              if (model) {
+                model.enabled = enabled;
+              }
+            }
+          })
+        ),
 
       // 外观设置操作
-      updateAppearance: (settings: Partial<AppearanceSettings>) => set(
-        produce((state: ConfigState) => {
-          state.appearance = {
-            ...state.appearance,
-            ...settings
-          };
-        })
-      ),
+      updateAppearance: (settings: Partial<AppearanceSettings>) =>
+        set(
+          produce((state: ConfigState) => {
+            state.appearance = {
+              ...state.appearance,
+              ...settings,
+            };
+          })
+        ),
 
       // 朗读设置操作
-      updateVoice: (settings: Partial<VoiceSettings>) => set(
-        produce((state: ConfigState) => {
-          state.voice = {
-            ...state.voice,
-            ...settings
-          };
-        })
-      ),
+      updateVoice: (settings: Partial<VoiceSettings>) =>
+        set(
+          produce((state: ConfigState) => {
+            state.voice = {
+              ...state.voice,
+              ...settings,
+            };
+          })
+        ),
 
       // 侧边栏设置操作
-      updateSidebar: (settings: Partial<SidebarSettings>) => set(
-        produce((state: ConfigState) => {
-          state.sidebar = {
-            ...state.sidebar,
-            ...settings
-          };
-        })
-      ),
+      updateSidebar: (settings: Partial<SidebarSettings>) =>
+        set(
+          produce((state: ConfigState) => {
+            state.sidebar = {
+              ...state.sidebar,
+              ...settings,
+            };
+          })
+        ),
 
       // 划词功能设置操作
-      updateTextSelection: (settings: Partial<TextSelectionSettings>) => set(
-        produce((state: ConfigState) => {
-          state.textSelection = {
-            ...state.textSelection,
-            ...settings
-          };
-        })
-      ),
+      updateTextSelection: (settings: Partial<TextSelectionSettings>) =>
+        set(
+          produce((state: ConfigState) => {
+            state.textSelection = {
+              ...state.textSelection,
+              ...settings,
+            };
+          })
+        ),
 
       // 键盘快捷键设置操作
-      updateKeyboardShortcuts: (settings: Partial<KeyboardShortcutsSettings>) => set(
-        produce((state: ConfigState) => {
-          state.keyboardShortcuts = {
-            ...state.keyboardShortcuts,
-            ...settings
-          };
-        })
-      ),
+      updateKeyboardShortcuts: (settings: Partial<KeyboardShortcutsSettings>) =>
+        set(
+          produce((state: ConfigState) => {
+            state.keyboardShortcuts = {
+              ...state.keyboardShortcuts,
+              ...settings,
+            };
+          })
+        ),
 
       // 提示词操作
-      updatePromptWords: (settings: Partial<PromptWordsSettings>) => set(
-        produce((state: ConfigState) => {
-          state.promptWords = {
-            ...state.promptWords,
-            ...settings
-          };
-        })
-      ),
-
-      addPromptWord: (promptWord: Omit<PromptWordItem, 'id' | 'order'>) => set(
-        produce((state: ConfigState) => {
-          const newId = Date.now().toString();
-          const maxOrder = state.promptWords.promptWords.length > 0
-            ? Math.max(...state.promptWords.promptWords.map((p: PromptWordItem) => p.order))
-            : -1;
-
-          state.promptWords.promptWords.push({
-            ...promptWord,
-            id: newId,
-            order: maxOrder + 1
-          });
-        })
-      ),
-
-      updatePromptWord: (id: string, updates: Partial<PromptWordItem>) => set(
-        produce((state: ConfigState) => {
-          const index = state.promptWords.promptWords.findIndex((p: PromptWordItem) => p.id === id);
-          if (index !== -1) {
-            state.promptWords.promptWords[index] = {
-              ...state.promptWords.promptWords[index],
-              ...updates
+      updatePromptWords: (settings: Partial<PromptWordsSettings>) =>
+        set(
+          produce((state: ConfigState) => {
+            state.promptWords = {
+              ...state.promptWords,
+              ...settings,
             };
-          }
-        })
-      ),
+          })
+        ),
 
-      removePromptWord: (id: string) => set(
-        produce((state: ConfigState) => {
-          state.promptWords.promptWords = state.promptWords.promptWords.filter((p: PromptWordItem) => p.id !== id);
-        })
-      ),
+      addPromptWord: (promptWord: Omit<PromptWordItem, 'id' | 'order'>) =>
+        set(
+          produce((state: ConfigState) => {
+            const newId = Date.now().toString();
+            const maxOrder =
+              state.promptWords.promptWords.length > 0
+                ? Math.max(
+                    ...state.promptWords.promptWords.map(
+                      (p: PromptWordItem) => p.order
+                    )
+                  )
+                : -1;
 
-      reorderPromptWords: (promptWords: PromptWordItem[]) => set(
-        produce((state: ConfigState) => {
-          state.promptWords.promptWords = promptWords;
-        })
-      ),
+            state.promptWords.promptWords.push({
+              ...promptWord,
+              id: newId,
+              order: maxOrder + 1,
+            });
+          })
+        ),
+
+      updatePromptWord: (id: string, updates: Partial<PromptWordItem>) =>
+        set(
+          produce((state: ConfigState) => {
+            const index = state.promptWords.promptWords.findIndex(
+              (p: PromptWordItem) => p.id === id
+            );
+            if (index !== -1) {
+              state.promptWords.promptWords[index] = {
+                ...state.promptWords.promptWords[index],
+                ...updates,
+              };
+            }
+          })
+        ),
+
+      removePromptWord: (id: string) =>
+        set(
+          produce((state: ConfigState) => {
+            state.promptWords.promptWords =
+              state.promptWords.promptWords.filter(
+                (p: PromptWordItem) => p.id !== id
+              );
+          })
+        ),
+
+      reorderPromptWords: (promptWords: PromptWordItem[]) =>
+        set(
+          produce((state: ConfigState) => {
+            state.promptWords.promptWords = promptWords;
+          })
+        ),
 
       // 翻译设置操作
-      updateTranslation: (settings: Partial<TranslationSettings>) => set(
-        produce((state: ConfigState) => {
-          state.translation = {
-            ...state.translation,
-            ...settings
-          };
-        })
-      ),
+      updateTranslation: (settings: Partial<TranslationSettings>) =>
+        set(
+          produce((state: ConfigState) => {
+            state.translation = {
+              ...state.translation,
+              ...settings,
+            };
+          })
+        ),
 
       // 网页助手设置操作
-      updateWebHelper: (settings: Partial<WebHelperSettings>) => set(
-        produce((state: ConfigState) => {
-          state.webHelper = {
-            ...state.webHelper,
-            ...settings
-          };
-        })
-      ),
+      updateWebHelper: (settings: Partial<WebHelperSettings>) =>
+        set(
+          produce((state: ConfigState) => {
+            state.webHelper = {
+              ...state.webHelper,
+              ...settings,
+            };
+          })
+        ),
 
       // 账户操作
-      updateAccount: (account: Partial<AccountInfo>) => set(
-        produce((state: ConfigState) => {
-          state.account = {
-            ...state.account,
-            ...account
-          } as AccountInfo;
-        })
-      ),
+      updateAccount: (account: Partial<AccountInfo>) =>
+        set(
+          produce((state: ConfigState) => {
+            state.account = {
+              ...state.account,
+              ...account,
+            } as AccountInfo;
+          })
+        ),
 
-      logout: () => set(
-        produce((state: ConfigState) => {
-          state.account = null;
-        })
-      ),
+      logout: () =>
+        set(
+          produce((state: ConfigState) => {
+            state.account = null;
+          })
+        ),
 
       // 自定义词典操作
       addCustomDictionaryEntry: (key: string, value: string) => {
@@ -587,7 +716,10 @@ export const useConfigStore = create<ConfigState>()(
       removeCustomDictionaryEntry: (key: string) => {
         set(
           produce((state) => {
-            if (state.translation.customDictionary && key in state.translation.customDictionary) {
+            if (
+              state.translation.customDictionary &&
+              key in state.translation.customDictionary
+            ) {
               delete state.translation.customDictionary[key];
             }
           })
@@ -603,57 +735,82 @@ export const useConfigStore = create<ConfigState>()(
       },
 
       // 自定义样式操作
-      addCustomStyle: (style: CustomStyleConfig, addToFront?: boolean) => set(
-        produce((state: ConfigState) => {
-          if (addToFront) {
-            // 添加到数组最前面
-            state.translation.customStyles.unshift(style);
-          } else {
-            // 添加到数组末尾
-            state.translation.customStyles.push(style);
-          }
-        })
-      ),
+      addCustomStyle: (style: CustomStyleConfig, addToFront?: boolean) =>
+        set(
+          produce((state: ConfigState) => {
+            if (addToFront) {
+              // 添加到数组最前面
+              state.translation.customStyles.unshift(style);
+            } else {
+              // 添加到数组末尾
+              state.translation.customStyles.push(style);
+            }
+          })
+        ),
 
-      updateCustomStyle: (name: string, updates: Partial<CustomStyleConfig>) => set(
-        produce((state: ConfigState) => {
-          const styleIndex = state.translation.customStyles.findIndex(s => s.name === name);
-          if (styleIndex !== -1) {
-            state.translation.customStyles[styleIndex] = {
-              ...state.translation.customStyles[styleIndex],
-              ...updates
-            };
-          }
-        })
-      ),
-
-      removeCustomStyle: (name: string) => set(
-        produce((state: ConfigState) => {
-          state.translation.customStyles = state.translation.customStyles.filter(s => s.name !== name);
-          state.translation.displayStyle = state.translation.customStyles[0].name;
-        })
-      ),
-
-      resetCustomStyle: (name: string) => set(
-        produce((state: ConfigState) => {
-          const template = DEFAULT_CUSTOM_STYLE_TEMPLATES.find(t => t.name === name);
-          if (template) {
-            const styleIndex = state.translation.customStyles.findIndex(s => s.name === name);
+      updateCustomStyle: (name: string, updates: Partial<CustomStyleConfig>) =>
+        set(
+          produce((state: ConfigState) => {
+            const styleIndex = state.translation.customStyles.findIndex(
+              (s) => s.name === name
+            );
             if (styleIndex !== -1) {
               state.translation.customStyles[styleIndex] = {
                 ...state.translation.customStyles[styleIndex],
-                css: template.css
+                ...updates,
               };
             }
-          }
-        })
-      ),
+          })
+        ),
 
-      resetAllCustomStyles: () => set(
-        produce((state: ConfigState) => {
-          state.translation.customStyles = DEFAULT_CUSTOM_STYLE_TEMPLATES;
-        })
-      ),
+      removeCustomStyle: (name: string) =>
+        set(
+          produce((state: ConfigState) => {
+            state.translation.customStyles =
+              state.translation.customStyles.filter((s) => s.name !== name);
+            state.translation.displayStyle =
+              state.translation.customStyles[0].name;
+          })
+        ),
+
+      resetAllCustomStyles: () =>
+        set(
+          produce((state: ConfigState) => {
+            state.translation.customStyles = DEFAULT_CUSTOM_STYLE_TEMPLATES;
+          })
+        ),
+
+      // 翻译提供商操作
+      addTranslationProvider: (provider: TranslationProviderType) =>
+        set(
+          produce((state: ConfigState) => {
+            state.translationProviders.push(provider);
+          })
+        ),
+
+      updateTranslationProvider: (id: string, updates: Partial<TranslationProviderType>) =>
+        set(
+          produce((state: ConfigState) => {
+            const providerIndex = state.translationProviders.findIndex(
+              (p: TranslationProviderType) => p.id === id
+            );
+            if (providerIndex !== -1) {
+              state.translationProviders[providerIndex] = {
+                ...state.translationProviders[providerIndex],
+                ...updates,
+              };
+            }
+          })
+        ),
+
+      removeTranslationProvider: (id: string) =>
+        set(
+          produce((state: ConfigState) => {
+            state.translationProviders = state.translationProviders.filter(
+              (p: TranslationProviderType) => p.id !== id
+            );
+          })
+        ),
     }),
     {
       name: CONFIG_STORAGE_KEY,
@@ -663,26 +820,33 @@ export const useConfigStore = create<ConfigState>()(
 );
 
 // 导出便捷的钩子函数，用于获取特定配置
-export const useProviders = () => useConfigStore(state => state.providers);
-export const useSelectedProvider = () => useConfigStore(state => state.selectedProvider);
-export const useAppearance = () => useConfigStore(state => state.appearance);
-export const useVoice = () => useConfigStore(state => state.voice);
-export const useSidebar = () => useConfigStore(state => state.sidebar);
-export const useTextSelection = () => useConfigStore(state => state.textSelection);
-export const useAccount = () => useConfigStore(state => state.account);
-export const usePromptWords = () => useConfigStore(state => state.promptWords);
-export const useTranslation = () => useConfigStore(state => state.translation);
-export const useWebHelper = () => useConfigStore(state => state.webHelper);
-export const useKeyboardShortcuts = () => useConfigStore(state => state.keyboardShortcuts);
+export const useProviders = () => useConfigStore((state) => state.providers);
+export const useTranslationProviders = () =>
+  useConfigStore((state) => state.translationProviders);
+export const useSelectedProvider = () =>
+  useConfigStore((state) => state.selectedProvider);
+export const useAppearance = () => useConfigStore((state) => state.appearance);
+export const useVoice = () => useConfigStore((state) => state.voice);
+export const useSidebar = () => useConfigStore((state) => state.sidebar);
+export const useTextSelection = () =>
+  useConfigStore((state) => state.textSelection);
+export const useAccount = () => useConfigStore((state) => state.account);
+export const usePromptWords = () =>
+  useConfigStore((state) => state.promptWords);
+export const useTranslation = () =>
+  useConfigStore((state) => state.translation);
+export const useWebHelper = () => useConfigStore((state) => state.webHelper);
+export const useKeyboardShortcuts = () =>
+  useConfigStore((state) => state.keyboardShortcuts);
 
 // 根据当前选择的提供商获取可用模型
 export const useAvailableModels = () => {
-  const providers = useConfigStore(state => state.providers);
-  const selectedProviderId = useConfigStore(state => state.selectedProvider);
+  const providers = useConfigStore((state) => state.providers);
+  const selectedProviderId = useConfigStore((state) => state.selectedProvider);
 
-  const selectedProvider = providers.find(p => p.id === selectedProviderId);
+  const selectedProvider = providers.find((p) => p.id === selectedProviderId);
   if (selectedProvider) {
-    return selectedProvider.models.filter(model => model.enabled !== false);
+    return selectedProvider.models.filter((model) => model.enabled !== false);
   }
   return [];
 };

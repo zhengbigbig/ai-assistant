@@ -3,6 +3,9 @@
  */
 import { TranslationServiceProvider } from './types';
 
+// 默认的 DeepL 网址
+const DEFAULT_BASE_URL = 'https://www.deepl.com';
+
 /**
  * DeepL翻译标签
  */
@@ -11,7 +14,11 @@ let DeepLTab: chrome.tabs.Tab | null = null;
 /**
  * 创建DeepL翻译服务
  */
-export function createDeepLTranslationService(): TranslationServiceProvider {
+export function createDeepLTranslationService(
+  baseUrl?: string
+): TranslationServiceProvider {
+  const actualBaseUrl = baseUrl || DEFAULT_BASE_URL;
+
   return {
     serviceName: 'deepl',
     async translate(
@@ -63,7 +70,7 @@ export function createDeepLTranslationService(): TranslationServiceProvider {
               // 如果标签页不存在，创建新标签页
               chrome.tabs.create(
                 {
-                  url: `https://www.deepl.com/#!${targetLanguage}!#${encodeURIComponent(
+                  url: `${actualBaseUrl}/#!${targetLanguage}!#${encodeURIComponent(
                     sourceArray2d[0][0]
                   )}`,
                 },
@@ -78,7 +85,7 @@ export function createDeepLTranslationService(): TranslationServiceProvider {
           // 如果没有DeepL标签页，创建一个
           chrome.tabs.create(
             {
-              url: `https://www.deepl.com/#!${targetLanguage}!#${encodeURIComponent(
+              url: `${actualBaseUrl}/#!${targetLanguage}!#${encodeURIComponent(
                 sourceArray2d[0][0]
               )}`,
             },

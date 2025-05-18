@@ -1,6 +1,7 @@
 /**
  * 翻译服务类型定义
  */
+import { TranslationProviderType } from '@/entrypoints/stores/configStore';
 
 // 翻译状态
 export type TranslationStatus = 'translating' | 'complete' | 'error';
@@ -58,10 +59,5 @@ export interface TranslationServiceProvider {
   ): Promise<string[][]>;
 }
 
-// OpenAI协议服务参数
-export interface OpenAIServiceParams {
-  apiKey: string;
-  endpoint: string;
-  model: string;
-  systemPrompt?: string;
-}
+// 导出 ConfigStore 中的 TranslationProviderType 以便其他模块使用
+export type { TranslationProviderType };

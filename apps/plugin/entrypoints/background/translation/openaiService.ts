@@ -1,19 +1,23 @@
 /**
  * OpenAI翻译服务实现
  */
-import { TranslationServiceProvider, OpenAIServiceParams } from './types';
+import OpenAI from 'openai';
+import { TranslationServiceProvider, TranslationProviderType } from './types';
 
 /**
  * 创建OpenAI翻译服务
  */
-export function createOpenAITranslationService({
-  apiKey,
-  endpoint = 'https://api.openai.com/v1/chat/completions',
-  model = 'gpt-3.5-turbo',
-  systemPrompt = '你是一个专业的翻译助手，请将用户输入的文本翻译成目标语言，只返回翻译结果，不要添加任何解释或额外内容。'
-}: OpenAIServiceParams): TranslationServiceProvider {
+export function createOpenAITranslationService(provider: TranslationProviderType): TranslationServiceProvider {
+  const {
+    apiKey = '',
+    baseUrl: endpoint = 'https://api.openai.com/v1/chat/completions',
+    model = 'gpt-3.5-turbo',
+    systemPrompt = '你是一个专业的翻译助手，请将用户输入的文本翻译成{{targetLanguage}}，只返回翻译结果，不要添加任何解释或额外内容。',
+    headers = {}
+  } = provider;
+
   return {
-    serviceName: 'openai',
+    serviceName: provider.id || 'openai',
     async translate(
       sourceLanguage: string,
       targetLanguage: string,
@@ -29,13 +33,23 @@ export function createOpenAITranslationService({
       }
 
       try {
-        // 构建请求体
-        const requestBody = {
-          model,
+        // 创建OpenAI客户端实例
+        const openai = new OpenAI({
+          apiKey: apiKey,
+          baseURL: endpoint,
+          defaultHeaders: {
+            'Content-Type': 'application/json',
+            ...headers
+          }
+        });
+
+        // 使用OpenAI API进行翻译
+        const completion = await openai.chat.completions.create({
+          model: model,
           messages: [
             {
               role: 'system',
-              content: systemPrompt
+              content: systemPrompt.replace('{{targetLanguage}}', getLanguageName(targetLanguage))
             },
             {
               role: 'user',
@@ -43,27 +57,11 @@ export function createOpenAITranslationService({
             }
           ],
           temperature: 0.3
-        };
-
-        // 发送请求
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify(requestBody)
         });
-
-        if (!response.ok) {
-          throw new Error(`OpenAI API 请求失败: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-
+        console.log('completion', completion);
         // 解析响应
-        if (data.choices && data.choices.length > 0) {
-          const translatedText = data.choices[0].message.content;
+        if (completion.choices && completion.choices.length > 0) {
+          const translatedText = completion.choices[0].message.content || '';
 
           // 按照分隔符分割文本
           const translatedTexts = translatedText.split('\n---\n');

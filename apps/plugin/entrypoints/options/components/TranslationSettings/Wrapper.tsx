@@ -1,12 +1,13 @@
-import { Divider, Typography } from 'antd';
+import { Typography } from 'antd';
+import React from 'react';
 import styled from 'styled-components';
-import { StyledCard, StyledDivider, StyledSection, StyledTitle, TitleWithIcon, Label } from '../Wrapper';
+import { Label, StyledCard, StyledDivider, StyledSection, StyledTitle, TitleWithIcon } from '../Wrapper';
 
 // 重导出公共样式组件
-export { StyledCard, StyledDivider, StyledSection, StyledTitle, TitleWithIcon, Label };
+export { Label, StyledCard, StyledDivider, StyledSection, StyledTitle, TitleWithIcon };
 
 // TranslationSettings特有的样式组件
-export const ProviderItem = styled.div`
+export const ProviderItem = styled.div<React.HTMLAttributes<HTMLDivElement>>`
   display: flex;
   align-items: center;
   justify-content: space-between;
