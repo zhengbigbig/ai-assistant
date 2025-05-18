@@ -74,10 +74,70 @@ interface ColorSelection {
   position: { x: number; y: number };
   color: string;
   range: monaco.Range | null;
+  format: 'hex' | 'rgb' | 'rgba' | 'hsl' | 'hsla'; // 新增：记录颜色格式
 }
 
-// 颜色值正则表达式
-const COLOR_REGEX = /(#[0-9A-Fa-f]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\))/g;
+// 颜色值正则表达式 - 细化匹配各种格式
+const HEX_REGEX = /#[0-9A-Fa-f]{3,8}/;
+const RGB_REGEX = /rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/;
+const RGBA_REGEX = /rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*(?:0?\.\d+|[01])\s*\)/;
+const HSL_REGEX = /hsl\(\s*\d+\s*,\s*\d+%?\s*,\s*\d+%?\s*\)/;
+const HSLA_REGEX = /hsla\(\s*\d+\s*,\s*\d+%?\s*,\s*\d+%?\s*,\s*(?:0?\.\d+|[01])\s*\)/;
+// 组合所有颜色格式为一个正则表达式，用于在文本中查找颜色值
+const COLOR_REGEX = /(#[0-9A-Fa-f]{3,8}|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)|rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*(?:0?\.\d+|[01])\s*\)|hsl\(\s*\d+\s*,\s*\d+%?\s*,\s*\d+%?\s*\)|hsla\(\s*\d+\s*,\s*\d+%?\s*,\s*\d+%?\s*,\s*(?:0?\.\d+|[01])\s*\))/g;
+
+/**
+ * 检测颜色格式
+ * @param color 颜色字符串
+ * @returns 颜色格式
+ */
+const detectColorFormat = (color: string): 'hex' | 'rgb' | 'rgba' | 'hsl' | 'hsla' => {
+  if (HEX_REGEX.test(color)) return 'hex';
+  if (RGB_REGEX.test(color)) return 'rgb';
+  if (RGBA_REGEX.test(color)) return 'rgba';
+  if (HSL_REGEX.test(color)) return 'hsl';
+  if (HSLA_REGEX.test(color)) return 'hsla';
+  return 'hex'; // 默认为hex格式
+};
+
+/**
+ * 转换颜色对象为指定格式的字符串
+ * @param color 颜色对象
+ * @param format 目标格式
+ * @param originalString 原始颜色字符串
+ * @returns 格式化后的颜色字符串
+ */
+const formatColor = (color: any, format: string, originalString: string): string => {
+  try {
+    // 检查颜色对象是否有效
+    if (!color) return originalString;
+
+    switch (format) {
+      case 'hex':
+        return color.toHexString ? color.toHexString() : originalString;
+      case 'rgb':
+        if (color.toRgbString) {
+          return color.toRgbString().replace(/rgba?\((\d+,\s*\d+,\s*\d+),\s*1\)/, 'rgb($1)');
+        }
+        return originalString;
+      case 'rgba':
+        return color.toRgbString ? color.toRgbString() : originalString;
+      case 'hsl':
+        if (color.toHslString) {
+          return color.toHslString().replace(/hsla?\(([^)]+),\s*1\)/, 'hsl($1)');
+        }
+        return originalString;
+      case 'hsla':
+        return color.toHslString ? color.toHslString() : originalString;
+      default:
+        // 如果无法确定格式，保留原始字符串
+        return originalString;
+    }
+  } catch (error) {
+    console.error('颜色格式转换错误:', error);
+    return originalString; // 发生错误时返回原始字符串
+  }
+};
 
 /**
  * Monaco CSS编辑器组件
@@ -97,6 +157,7 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
     position: { x: 0, y: 0 },
     color: '#1890ff',
     range: null,
+    format: 'hex', // 默认为hex格式
   });
 
   /**
@@ -162,39 +223,49 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
         if (model && position) {
           // 获取当前行文本
           const lineContent = model.getLineContent(position.lineNumber);
-          const wordAtPosition = model.getWordAtPosition(position);
 
-          if (wordAtPosition) {
-            const word = lineContent.substring(
-              wordAtPosition.startColumn - 1,
-              wordAtPosition.endColumn - 1
-            );
+          // 查找点击位置所在的颜色值
+          // 遍历当前行的所有颜色值匹配
+          const colorMatches = [...lineContent.matchAll(COLOR_REGEX)];
 
-            // 检查是否是颜色值（简单检查：以#开头或者是rgb/rgba/hsl/hsla函数）
-            if (COLOR_REGEX.test(word)) {
+          for (const match of colorMatches) {
+            if (!match.index) continue;
+
+            const colorStart = match.index;
+            const colorEnd = colorStart + match[0].length;
+            const cursorPos = position.column - 1; // Monaco编辑器的列从1开始，转为0开始
+
+            // 检查点击位置是否在颜色值范围内
+            if (cursorPos >= colorStart && cursorPos <= colorEnd) {
+              const colorValue = match[0];
+
               // 获取颜色值位置的屏幕坐标
               const domNode = editor.getDomNode();
               if (domNode) {
                 const editorCoords = domNode.getBoundingClientRect();
-                const cursorCoords =
-                  editor.getScrolledVisiblePosition(position);
+                const cursorCoords = editor.getScrolledVisiblePosition(position);
 
                 if (cursorCoords) {
                   const x = editorCoords.left + cursorCoords.left;
                   const y = editorCoords.top + cursorCoords.top;
 
+                  // 检测颜色格式
+                  const format = detectColorFormat(colorValue);
+
                   // 打开颜色选择器
                   setColorSelection({
                     open: true,
                     position: { x, y },
-                    color: word,
+                    color: colorValue,
                     range: new monacoInstance.Range(
                       position.lineNumber,
-                      wordAtPosition.startColumn,
+                      colorStart + 1, // 转换回Monaco的1开始索引
                       position.lineNumber,
-                      wordAtPosition.endColumn
+                      colorEnd + 1
                     ),
+                    format,
                   });
+                  break; // 找到匹配的颜色值后退出循环
                 }
               }
             }
@@ -216,18 +287,25 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
 
   /**
    * 处理颜色变化
-   * @param newColor 新的颜色值
+   * @param newColor 新的颜色值（ColorPicker对象）
    */
-  const handleColorChange = (newColor: string) => {
+  const handleColorChange = (newColor: any) => {
     if (editorRef.current && monacoRef.current && colorSelection.range) {
       // 获取编辑器模型
       const model = editorRef.current.getModel();
       if (model) {
+        // 根据原始格式格式化颜色
+        const formattedColor = formatColor(
+          newColor,
+          colorSelection.format,
+          colorSelection.color
+        );
+
         // 执行编辑操作，替换选中的颜色值
         editorRef.current.executeEdits('colorPicker', [
           {
             range: colorSelection.range,
-            text: newColor,
+            text: formattedColor,
             forceMoveMarkers: true,
           },
         ]);
@@ -242,7 +320,7 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
         setColorSelection({
           ...colorSelection,
           open: false,
-          color: newColor,
+          color: formattedColor,
         });
       }
     }
@@ -305,16 +383,32 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
         content={
           <div style={colorPickerContainerStyle}>
             <ColorPicker
+              // 将颜色字符串转换为antd ColorPicker可接受的格式
               value={colorSelection.color}
               onChange={(color) => {
-                // 实时更新颜色选择器中显示的颜色
+                // 实时更新颜色选择器中显示的颜色，保持原始格式
                 setColorSelection({
                   ...colorSelection,
-                  color: color.toHexString(),
+                  color: formatColor(color, colorSelection.format, colorSelection.color),
                 });
               }}
-              onChangeComplete={(color) => handleColorChange(color.toHexString())}
+              onChangeComplete={(color) => handleColorChange(color)}
               showText
+              // 根据颜色格式设置ColorPicker的格式
+              format={
+                colorSelection.format === 'hex' ? 'hex' :
+                (colorSelection.format === 'rgb' || colorSelection.format === 'rgba') ? 'rgb' :
+                (colorSelection.format === 'hsl' || colorSelection.format === 'hsla') ? 'hsb' : 'hex'
+              }
+              // 允许清除色值
+              allowClear={false}
+              // 显示颜色预设面板
+              presets={[
+                {
+                  label: '预设颜色',
+                  colors: colorSuggestions.map(suggestion => suggestion.label).filter(label => label !== 'transparent'),
+                },
+              ]}
             />
           </div>
         }
@@ -323,6 +417,7 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
             position: 'absolute',
             left: `${colorSelection.position.x}px`,
             top: `${colorSelection.position.y + 20}px`,
+            zIndex: 1000, // 确保弹出层在最上层
           },
         }}
       />
