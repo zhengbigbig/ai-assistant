@@ -58,7 +58,6 @@ export function createOpenAITranslationService(provider: TranslationProviderType
           ],
           temperature: 0.3
         });
-        console.log('completion', completion);
         // 解析响应
         if (completion.choices && completion.choices.length > 0) {
           const translatedText = completion.choices[0].message.content || '';
