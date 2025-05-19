@@ -22,7 +22,7 @@
     - 工具函数 utils/**/* helper.ts
 
 # 提交规范
-请不要做提交，需要在用户主动发起，再做提交
+不要自动提交代码，除非有明确指令
 提交规范：
 - 提交信息需要包含：
     - 提交类型：feat/fix/refactor/style/test/chore

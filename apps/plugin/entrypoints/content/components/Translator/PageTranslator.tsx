@@ -41,7 +41,9 @@ const PageTranslator: React.FC = () => {
   // 从store获取翻译设置
   const translation = useTranslation();
   const { forbiddenWebsites, displayStyle, customStyles } = translation;
-  const currentCustomStyle = customStyles?.find(c=>c?.name === displayStyle)?.css
+  const currentCustomStyle = customStyles?.find(
+    (c) => c?.name === displayStyle
+  )?.css;
 
   // ctx上下文
   const ctx = useTranslationStore((state) => state.ctx);
@@ -52,14 +54,12 @@ const PageTranslator: React.FC = () => {
   const isTranslated = pageLanguageState === 'translated';
   // 检查当前网站是否在禁止翻译列表中
   const isWebsiteForbidden = (): boolean => {
-    console.log('forbiddenWebsites',forbiddenWebsites,ctx)
     if (!forbiddenWebsites || forbiddenWebsites.length === 0) return false;
-    if (!ctx || !ctx.tabHostName) return true; // 如果ctx还未初始化，暂时返回true避免翻译
 
     const currentHostname = ctx.tabHostName;
     return forbiddenWebsites.some(
       (site: string) =>
-        currentHostname === site || currentHostname.endsWith('.' + site)
+        site?.includes(currentHostname)
     );
   };
 
@@ -88,85 +88,72 @@ const PageTranslator: React.FC = () => {
 
     // 初始注入自定义样式
     injectCustomStyleToHtml(currentCustomStyle || '');
+  }, []);
 
-    // 1. 当前窗口是顶层窗口
+  useEffect(() => {
+    if(!ctx?.tabHostName){
+      return;
+    }
+    // 当前窗口是顶层窗口
     if (window.self === window.top) {
       const onTabVisible = function () {
-        // 确保上下文初始化完成
-        const checkCtxAndDetectLanguage = () => {
-          const currentCtx = useTranslationStore.getState().ctx;
-          if (!currentCtx || !currentCtx.tabHostName) {
-            // ctx尚未初始化完成，继续等待
-            setTimeout(checkCtxAndDetectLanguage, 50);
-            return;
-          }
+        chrome.runtime.sendMessage(
+          {
+            action: 'detectTabLanguage',
+          },
+          async (result) => {
+            // 如果语言未检测到或为"und"，则手动检测
+            if (result === 'und' || !result) {
+              result = await detectPageLanguage();
+            }
+            console.log('result', result);
+            result = result || 'und';
 
-          // ctx已初始化，继续执行语言检测和翻译逻辑
-          chrome.runtime.sendMessage(
-            {
-              action: 'detectTabLanguage',
-            },
-            async (result) => {
-              // 如果语言未检测到或为"und"，则手动检测
-              if (result === 'und' || !result) {
-                result = await detectPageLanguage();
+            // 如果结果仍为"und"
+            if (result === 'und') {
+              useTranslationStore.getState().setOriginalTabLanguage(result);
+            }
+
+            if (result !== 'und') {
+              // 修正语言代码
+              const langCode = languages.fixTLanguageCode(result);
+              if (langCode) {
+                useTranslationStore.getState().setOriginalTabLanguage(langCode);
               }
-              console.log('result', result);
-              result = result || 'und';
-
-              // 如果结果仍为"und"
-              if (result === 'und') {
-                useTranslationStore.getState().setOriginalTabLanguage(result);
-              }
-
-              if (result !== 'und') {
-                // 修正语言代码
-                const langCode = languages.fixTLanguageCode(result);
-                if (langCode) {
-                  useTranslationStore.getState().setOriginalTabLanguage(langCode);
-                }
-                // 特定情况下的自动翻译逻辑
+              // 特定情况下的自动翻译逻辑
+              if (
+                location.hostname === 'translatewebpages.org' &&
+                location.href.indexOf('?autotranslate') !== -1
+              ) {
+                translatePage();
+              } else {
+                // 避免在翻译网站上进行翻译
                 if (
-                  location.hostname === 'translatewebpages.org' &&
-                  location.href.indexOf('?autotranslate') !== -1
+                  location.hostname !== 'translate.googleusercontent.com' &&
+                  location.hostname !== 'translate.google.com' &&
+                  location.hostname !== 'translate.yandex.com'
                 ) {
-                  translatePage();
-                } else {
-                  // 避免在翻译网站上进行翻译
+                  // 如果页面是原始状态且不在隐私浏览模式下
                   if (
-                    location.hostname !== 'translate.googleusercontent.com' &&
-                    location.hostname !== 'translate.google.com' &&
-                    location.hostname !== 'translate.yandex.com'
+                    useTranslationStore.getState().pageLanguageState ===
+                      'original' &&
+                    !chrome.extension.inIncognitoContext
                   ) {
-                    console.log('useTranslationStore.getState().pageLanguageState',useTranslationStore.getState().pageLanguageState)
-                    console.log('chrome.extension.inIncognitoContext',chrome.extension.inIncognitoContext)
-                    // 如果页面是原始状态且不在隐私浏览模式下
-                    if (
-                      useTranslationStore.getState().pageLanguageState ===
-                        'original' &&
-                      !chrome.extension.inIncognitoContext
-                    ) {
-                      console.log('isWebsiteForbidden',isWebsiteForbidden())
-                      // 如果当前网站不在"永不翻译的网站"列表中
-                      if (!isWebsiteForbidden()) {
-                        const currentTargetLanguage =
-                          useConfigStore.getState().translation.targetLanguage;
-                        // 如果语言代码有效，且不是目标语言，且在"总是翻译的语言"列表中，则翻译页面
-                        console.log(111,langCode,currentTargetLanguage)
-                        if (langCode && langCode !== currentTargetLanguage) {
-                          translatePage();
-                        }
+                    // 如果当前网站不在"永不翻译的网站"列表中
+                    if (!isWebsiteForbidden()) {
+                      const currentTargetLanguage =
+                        useConfigStore.getState().translation.targetLanguage;
+                      // 如果语言代码有效，且不是目标语言，且在"总是翻译的语言"列表中，则翻译页面
+                      if (langCode && langCode !== currentTargetLanguage) {
+                        translatePage();
                       }
                     }
                   }
                 }
               }
             }
-          );
-        };
-
-        // 开始检查ctx并执行语言检测
-        checkCtxAndDetectLanguage();
+          }
+        );
       };
 
       // 延迟120ms执行初始化
@@ -220,7 +207,7 @@ const PageTranslator: React.FC = () => {
         }
       );
     }
-  }, []);
+  }, [ctx?.tabHostName]);
 
   // 页面可见性变化处理
   useEffect(() => {
@@ -262,8 +249,7 @@ const PageTranslator: React.FC = () => {
       closeIcon={<CustomerServiceOutlined />}
       badge={{
         count: open ? (
-          <div
-          >
+          <div>
             <CloseIcon />
           </div>
         ) : (
