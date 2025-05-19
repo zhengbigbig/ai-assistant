@@ -1,17 +1,12 @@
 import Editor, { OnMount } from '@monaco-editor/react';
-import { theme as antdTheme, ColorPicker, Popover } from 'antd';
+import { theme as antdTheme } from 'antd';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import './loader';
 
-/**
- * 颜色选择器容器样式
- */
-const colorPickerContainerStyle = {
-  padding: '8px',
-};
-
+// 确保 Monaco CSS 语言服务类型导入
+import 'monaco-editor/esm/vs/language/css/monaco.contribution';
 
 /**
  * 自定义CSS属性提示数据
@@ -68,77 +63,6 @@ interface MonacoCssEditorProps {
   isDarkMode?: boolean; // 是否使用暗色主题
 }
 
-// 用于保存当前选取的颜色值和位置信息
-interface ColorSelection {
-  open: boolean;
-  position: { x: number; y: number };
-  color: string;
-  range: monaco.Range | null;
-  format: 'hex' | 'rgb' | 'rgba' | 'hsl' | 'hsla'; // 新增：记录颜色格式
-}
-
-// 颜色值正则表达式 - 细化匹配各种格式
-const HEX_REGEX = /#[0-9A-Fa-f]{3,8}/;
-const RGB_REGEX = /rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/;
-const RGBA_REGEX = /rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*(?:0?\.\d+|[01])\s*\)/;
-const HSL_REGEX = /hsl\(\s*\d+\s*,\s*\d+%?\s*,\s*\d+%?\s*\)/;
-const HSLA_REGEX = /hsla\(\s*\d+\s*,\s*\d+%?\s*,\s*\d+%?\s*,\s*(?:0?\.\d+|[01])\s*\)/;
-// 组合所有颜色格式为一个正则表达式，用于在文本中查找颜色值
-const COLOR_REGEX = /(#[0-9A-Fa-f]{3,8}|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)|rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*(?:0?\.\d+|[01])\s*\)|hsl\(\s*\d+\s*,\s*\d+%?\s*,\s*\d+%?\s*\)|hsla\(\s*\d+\s*,\s*\d+%?\s*,\s*\d+%?\s*,\s*(?:0?\.\d+|[01])\s*\))/g;
-
-/**
- * 检测颜色格式
- * @param color 颜色字符串
- * @returns 颜色格式
- */
-const detectColorFormat = (color: string): 'hex' | 'rgb' | 'rgba' | 'hsl' | 'hsla' => {
-  if (HEX_REGEX.test(color)) return 'hex';
-  if (RGB_REGEX.test(color)) return 'rgb';
-  if (RGBA_REGEX.test(color)) return 'rgba';
-  if (HSL_REGEX.test(color)) return 'hsl';
-  if (HSLA_REGEX.test(color)) return 'hsla';
-  return 'hex'; // 默认为hex格式
-};
-
-/**
- * 转换颜色对象为指定格式的字符串
- * @param color 颜色对象
- * @param format 目标格式
- * @param originalString 原始颜色字符串
- * @returns 格式化后的颜色字符串
- */
-const formatColor = (color: any, format: string, originalString: string): string => {
-  try {
-    // 检查颜色对象是否有效
-    if (!color) return originalString;
-
-    switch (format) {
-      case 'hex':
-        return color.toHexString ? color.toHexString() : originalString;
-      case 'rgb':
-        if (color.toRgbString) {
-          return color.toRgbString().replace(/rgba?\((\d+,\s*\d+,\s*\d+),\s*1\)/, 'rgb($1)');
-        }
-        return originalString;
-      case 'rgba':
-        return color.toRgbString ? color.toRgbString() : originalString;
-      case 'hsl':
-        if (color.toHslString) {
-          return color.toHslString().replace(/hsla?\(([^)]+),\s*1\)/, 'hsl($1)');
-        }
-        return originalString;
-      case 'hsla':
-        return color.toHslString ? color.toHslString() : originalString;
-      default:
-        // 如果无法确定格式，保留原始字符串
-        return originalString;
-    }
-  } catch (error) {
-    console.error('颜色格式转换错误:', error);
-    return originalString; // 发生错误时返回原始字符串
-  }
-};
-
 /**
  * Monaco CSS编辑器组件
  * 提供CSS编辑功能，包含属性和颜色自动补全
@@ -152,13 +76,6 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof monaco | null>(null);
   const { token } = antdTheme.useToken();
-  const [colorSelection, setColorSelection] = useState<ColorSelection>({
-    open: false,
-    position: { x: 0, y: 0 },
-    color: '#1890ff',
-    range: null,
-    format: 'hex', // 默认为hex格式
-  });
 
   /**
    * 注册自定义补全提供器
@@ -214,64 +131,47 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
     monacoRef.current = monacoInstance;
     registerCompletionProvider(monacoInstance);
 
-    // 添加鼠标点击事件监听器，检测点击颜色值
-    editor.onMouseDown((e) => {
-      if (e.target.type === monaco.editor.MouseTargetType.CONTENT_TEXT) {
-        const position = e.target.position;
-        const model = editor.getModel();
+    // 禁用 CSS 的 emptyRules 规则
+    monacoInstance.languages.css.cssDefaults.setOptions({
+      validate: true,
+      lint: {
+        emptyRules: 'ignore', // 禁用空规则集检查
+        // 以下是其他可以配置的规则，默认保持启用状态
+        // 如果需要禁用其他规则，可以将对应值设为 'ignore'
+        compatibleVendorPrefixes: 'warning', // 建议使用兼容的供应商前缀
+        vendorPrefix: 'warning', // 建议使用供应商前缀
+        duplicateProperties: 'warning', // 警告重复属性
+        universalSelector: 'ignore', // 允许使用通用选择器 *
+        zeroUnits: 'ignore', // 允许使用 0 值后跟单位 (例如 0px)
+        importStatement: 'warning', // 警告使用 @import
+        boxModel: 'warning', // 警告盒模型相关问题
+        important: 'warning', // 警告使用 !important
+        float: 'warning', // 警告使用 float
+        idSelector: 'warning', // 警告使用 ID 选择器
+        propertyIgnoredDueToDisplay: 'warning', // 警告因 display 类型导致的忽略属性
+      },
+      // 其他常用设置
+      data: {}, // 可以提供数据给CSS验证器
+    });
 
-        if (model && position) {
-          // 获取当前行文本
-          const lineContent = model.getLineContent(position.lineNumber);
+    // 设置编辑器容器样式，确保提示框能够正常显示
+    const editorDomNode = editor.getDomNode();
+    if (editorDomNode) {
+      // 为编辑器添加特定的类名，方便CSS选择器定位
+      editorDomNode.classList.add('monaco-css-editor');
+    }
 
-          // 查找点击位置所在的颜色值
-          // 遍历当前行的所有颜色值匹配
-          const colorMatches = [...lineContent.matchAll(COLOR_REGEX)];
-
-          for (const match of colorMatches) {
-            if (!match.index) continue;
-
-            const colorStart = match.index;
-            const colorEnd = colorStart + match[0].length;
-            const cursorPos = position.column - 1; // Monaco编辑器的列从1开始，转为0开始
-
-            // 检查点击位置是否在颜色值范围内
-            if (cursorPos >= colorStart && cursorPos <= colorEnd) {
-              const colorValue = match[0];
-
-              // 获取颜色值位置的屏幕坐标
-              const domNode = editor.getDomNode();
-              if (domNode) {
-                const editorCoords = domNode.getBoundingClientRect();
-                const cursorCoords = editor.getScrolledVisiblePosition(position);
-
-                if (cursorCoords) {
-                  const x = editorCoords.left + cursorCoords.left;
-                  const y = editorCoords.top + cursorCoords.top;
-
-                  // 检测颜色格式
-                  const format = detectColorFormat(colorValue);
-
-                  // 打开颜色选择器
-                  setColorSelection({
-                    open: true,
-                    position: { x, y },
-                    color: colorValue,
-                    range: new monacoInstance.Range(
-                      position.lineNumber,
-                      colorStart + 1, // 转换回Monaco的1开始索引
-                      position.lineNumber,
-                      colorEnd + 1
-                    ),
-                    format,
-                  });
-                  break; // 找到匹配的颜色值后退出循环
-                }
-              }
-            }
-          }
-        }
-      }
+    // 设置编辑器布局选项
+    editor.updateOptions({
+      // 使悬浮窗口始终可见，不受容器边界限制
+      fixedOverflowWidgets: true,
+      // 悬浮提示更新速度
+      hover: {
+        delay: 300,
+        sticky: true, // 鼠标悬停时保持提示显示
+      },
+      // 启用内置颜色选择器
+      colorDecorators: true,
     });
   };
 
@@ -285,142 +185,139 @@ const MonacoCssEditor: React.FC<MonacoCssEditorProps> = ({
     }
   };
 
-  /**
-   * 处理颜色变化
-   * @param newColor 新的颜色值（ColorPicker对象）
-   */
-  const handleColorChange = (newColor: any) => {
-    if (editorRef.current && monacoRef.current && colorSelection.range) {
-      // 获取编辑器模型
-      const model = editorRef.current.getModel();
-      if (model) {
-        // 根据原始格式格式化颜色
-        const formattedColor = formatColor(
-          newColor,
-          colorSelection.format,
-          colorSelection.color
-        );
-
-        // 执行编辑操作，替换选中的颜色值
-        editorRef.current.executeEdits('colorPicker', [
-          {
-            range: colorSelection.range,
-            text: formattedColor,
-            forceMoveMarkers: true,
-          },
-        ]);
-
-        // 更新编辑器内容
-        const newValue = model.getValue();
-        if (onChange) {
-          onChange(newValue);
-        }
-
-        // 关闭颜色选择器
-        setColorSelection({
-          ...colorSelection,
-          open: false,
-          color: formattedColor,
-        });
-      }
-    }
-  };
-
-  /**
-   * 关闭颜色选择器
-   */
-  const handleCloseColorPicker = () => {
-    setColorSelection({
-      ...colorSelection,
-      open: false,
-    });
-  };
-
   // 编辑器容器样式
   const editorContainerStyle = {
     border: `1px solid ${token.colorBorder}`,
     borderRadius: `${token.borderRadiusLG}px`,
-    overflow: 'hidden' as const,
+    overflow: 'visible' as const,
+    position: 'relative' as const,
+    width: '100%',
+  };
+
+  // 编辑器内部样式
+  const editorWrapperStyle = {
+    width: '100%',
+    height: '100%',
+    position: 'relative' as const,
   };
 
   return (
     <>
       <div style={editorContainerStyle}>
-        <Editor
-          height={height}
-          defaultLanguage="css"
-          theme={isDarkMode ? 'vs-dark' : 'vs'} // 根据isDarkMode选择主题
-          value={value}
-          onChange={handleEditorChange}
-          onMount={handleEditorDidMount}
-          options={{
-            minimap: { enabled: true }, // 禁用右侧代码缩略图，减少视觉干扰
-            scrollBeyondLastLine: true, // 禁止滚动超过最后一行，更符合表单输入体验
-            lineNumbers: 'on', // 显示行号
-            roundedSelection: true, // 使用圆角选择框
-            automaticLayout: true, // 自动调整布局大小
-            fontSize: 14, // 设置字体大小
-            colorDecorators: true, // 颜色装饰器，CSS中的颜色值会显示对应的颜色预览
-            tabSize: 2, // 设置 tab 缩进为 2 个空格
-            suggestOnTriggerCharacters: true, // 在触发字符时显示建议
-            quickSuggestions: true, // 快速建议
-            contextmenu: true, // 启用右键菜单
-          }}
-        />
+        <div style={editorWrapperStyle}>
+          <Editor
+            height={height}
+            defaultLanguage="css"
+            theme={isDarkMode ? 'vs-dark' : 'vs'} // 根据isDarkMode选择主题
+            value={value}
+            onChange={handleEditorChange}
+            onMount={handleEditorDidMount}
+            options={{
+              minimap: { enabled: true }, // 禁用右侧代码缩略图，减少视觉干扰
+              scrollBeyondLastLine: true, // 禁止滚动超过最后一行，更符合表单输入体验
+              lineNumbers: 'on', // 显示行号
+              roundedSelection: true, // 使用圆角选择框
+              automaticLayout: true, // 自动调整布局大小
+              fontSize: 14, // 设置字体大小
+              colorDecorators: true, // 颜色装饰器，CSS中的颜色值会显示对应的颜色预览
+              tabSize: 2, // 设置 tab 缩进为 2 个空格
+              suggestOnTriggerCharacters: true, // 在触发字符时显示建议
+              quickSuggestions: true, // 快速建议
+              contextmenu: true, // 启用右键菜单
+              fixedOverflowWidgets: true, // 确保提示内容不被容器边界截断
+              hover: {
+                delay: 300,
+                sticky: true, // 鼠标悬停时保持提示显示
+              },
+              suggest: {
+                showIcons: true,
+                snippetsPreventQuickSuggestions: false,
+                preview: true,
+              },
+              padding: { top: 12 },
+            }}
+          />
+        </div>
         <style>{`
           .monaco-placeholder-text {
             color: ${token.colorTextPlaceholder};
             font-style: italic;
           }
+
+          /* 确保Monaco编辑器的悬浮提示不被遮挡 */
+          .monaco-editor .monaco-hover {
+            z-index: 50 !important;
+            margin-top: 5px !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+          }
+
+          /* 确保代码提示框在上层显示 */
+          .monaco-editor .suggest-widget {
+            z-index: 40 !important;
+            margin-top: 5px !important;
+          }
+
+          /* 调整代码提示框的位置 */
+          .monaco-editor .suggest-widget.docs-side {
+            transform: translateY(-5px);
+          }
+
+          /* 修复提示框被边框截断的问题 */
+          .monaco-editor-hover {
+            margin-top: 8px;
+          }
+
+          /* 确保编辑器高度正确 */
+          .monaco-css-editor {
+            position: relative;
+            width: 100%;
+            height: 100%;
+          }
+
+          /* 修复hover提示的位置 */
+          .monaco-editor .monaco-hover-content {
+            max-width: 500px !important;
+            word-wrap: break-word !important;
+          }
+
+          /* 提高编辑器上方悬浮元素的层级 */
+          .monaco-editor .overlayWidgets {
+            z-index: 30 !important;
+          }
+
+          /* 确保编辑器容器不遮挡提示 */
+          .monaco-editor-container {
+            overflow: visible !important;
+          }
+
+          /* 增强内置颜色选择器的样式 */
+          .colorpicker-widget {
+            z-index: 100 !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+          }
+
+          /* 改进颜色预览的样式 */
+          .monaco-editor .colorpicker-color-decoration {
+            width: 10px !important;
+            height: 10px !important;
+            margin-left: 4px;
+            border-radius: 2px !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+          }
+
+          /* 为编辑器内颜色值增加悬停效果 */
+          .mtk5:has(.colorpicker-color-decoration):hover {
+            text-decoration: underline;
+            cursor: pointer;
+          }
+
+          /* 修复内置颜色选择器在暗色主题下的显示问题 */
+          .vs-dark .colorpicker-widget {
+            background-color: #252526 !important;
+            border-color: #454545 !important;
+          }
         `}</style>
       </div>
-
-      {/* 颜色选择器弹出层 */}
-      <Popover
-        open={colorSelection.open}
-        onOpenChange={(visible) => !visible && handleCloseColorPicker()}
-        trigger="click"
-        content={
-          <div style={colorPickerContainerStyle}>
-            <ColorPicker
-              // 将颜色字符串转换为antd ColorPicker可接受的格式
-              value={colorSelection.color}
-              onChange={(color) => {
-                // 实时更新颜色选择器中显示的颜色，保持原始格式
-                setColorSelection({
-                  ...colorSelection,
-                  color: formatColor(color, colorSelection.format, colorSelection.color),
-                });
-              }}
-              onChangeComplete={(color) => handleColorChange(color)}
-              showText
-              // 根据颜色格式设置ColorPicker的格式
-              format={
-                colorSelection.format === 'hex' ? 'hex' :
-                (colorSelection.format === 'rgb' || colorSelection.format === 'rgba') ? 'rgb' :
-                (colorSelection.format === 'hsl' || colorSelection.format === 'hsla') ? 'hsb' : 'hex'
-              }
-              // 允许清除色值
-              allowClear={false}
-              // 显示颜色预设面板
-              presets={[
-                {
-                  label: '预设颜色',
-                  colors: colorSuggestions.map(suggestion => suggestion.label).filter(label => label !== 'transparent'),
-                },
-              ]}
-            />
-          </div>
-        }
-        styles={{
-          root: {
-            position: 'absolute',
-            left: `${colorSelection.position.x}px`,
-            top: `${colorSelection.position.y + 20}px`,
-            zIndex: 1000, // 确保弹出层在最上层
-          },
-        }}
-      />
     </>
   );
 };
