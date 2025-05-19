@@ -40,7 +40,7 @@ const PageTranslator: React.FC = () => {
 
   // 从store获取翻译设置
   const translation = useTranslation();
-  const { forbiddenWebsites, displayStyle, customStyles } = translation;
+  const { forbiddenWebsites, displayStyle, customStyles, alwaysTranslateWebsites } = translation;
   const currentCustomStyle = customStyles?.find(
     (c) => c?.name === displayStyle
   )?.css;
@@ -58,6 +58,17 @@ const PageTranslator: React.FC = () => {
 
     const currentHostname = ctx.tabHostName;
     return forbiddenWebsites.some(
+      (site: string) =>
+        site?.includes(currentHostname)
+    );
+  };
+
+  // 检查当前网站是否在总是翻译列表中
+  const isWebsiteAlwaysTranslate = (): boolean => {
+    if (!alwaysTranslateWebsites || alwaysTranslateWebsites.length === 0) return false;
+
+    const currentHostname = ctx.tabHostName;
+    return alwaysTranslateWebsites.some(
       (site: string) =>
         site?.includes(currentHostname)
     );
@@ -143,8 +154,12 @@ const PageTranslator: React.FC = () => {
                     if (!isWebsiteForbidden()) {
                       const currentTargetLanguage =
                         useConfigStore.getState().translation.targetLanguage;
+                      // 如果当前网站在"总是翻译"列表中，直接翻译
+                      if (isWebsiteAlwaysTranslate()) {
+                        translatePage();
+                      }
                       // 如果语言代码有效，且不是目标语言，且在"总是翻译的语言"列表中，则翻译页面
-                      if (langCode && langCode !== currentTargetLanguage) {
+                      else if (langCode && langCode !== currentTargetLanguage) {
                         translatePage();
                       }
                     }
@@ -201,6 +216,14 @@ const PageTranslator: React.FC = () => {
           if (
             result === 'translated' &&
             useTranslationStore.getState().pageLanguageState === 'original'
+          ) {
+            translatePage();
+          }
+          // 如果主框架未翻译但当前网站在"总是翻译"列表中，则翻译当前框架
+          else if (
+            result !== 'translated' &&
+            useTranslationStore.getState().pageLanguageState === 'original' &&
+            isWebsiteAlwaysTranslate()
           ) {
             translatePage();
           }

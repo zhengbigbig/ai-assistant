@@ -73,6 +73,7 @@ const TranslationSettings: React.FC = () => {
   const [form] = Form.useForm();
   const { message: messageApi, modal } = App.useApp();
   const [forbiddenWebsite, setForbiddenWebsite] = useState<string>('');
+  const [alwaysTranslateWebsite, setAlwaysTranslateWebsite] = useState<string>('');
   const [translationProviderModal, setTranslationProviderModal] =
     useState(false);
   const [currentProvider, setCurrentProvider] = useState<TranslationProviderType | null>(
@@ -98,6 +99,7 @@ const TranslationSettings: React.FC = () => {
   const translation = useTranslation();
   const {
     forbiddenWebsites,
+    alwaysTranslateWebsites,
     customDictionary = {},
     customStyles = [],
     displayStyle,
@@ -136,6 +138,7 @@ const TranslationSettings: React.FC = () => {
     translationService: 'google',
     displayStyle: 'underline',
     forbiddenWebsites: [],
+    alwaysTranslateWebsites: [],
     enableVideoSubtitleTranslation: true,
     enableInputTranslation: false,
     enableHoverTranslation: true,
@@ -189,6 +192,33 @@ const TranslationSettings: React.FC = () => {
       (s: string) => s !== site
     );
     updateTranslation({ forbiddenWebsites: newForbiddenWebsites });
+  };
+
+  // 添加总是翻译的网站
+  const handleAddAlwaysTranslateWebsite = () => {
+    if (!alwaysTranslateWebsite) {
+      messageApi.info('请先设置总是翻译的网站');
+      return;
+    }
+
+    const websiteList = alwaysTranslateWebsites || [];
+
+    if (websiteList.includes(alwaysTranslateWebsite)) {
+      messageApi.error('该网站已在列表中');
+      return;
+    }
+
+    const newAlwaysTranslateWebsites = [...websiteList, alwaysTranslateWebsite];
+    updateTranslation({ alwaysTranslateWebsites: newAlwaysTranslateWebsites });
+    setAlwaysTranslateWebsite('');
+  };
+
+  // 移除总是翻译的网站
+  const handleRemoveAlwaysTranslateWebsite = (site: string) => {
+    const newAlwaysTranslateWebsites = (alwaysTranslateWebsites || []).filter(
+      (s: string) => s !== site
+    );
+    updateTranslation({ alwaysTranslateWebsites: newAlwaysTranslateWebsites });
   };
 
   // 处理翻译服务提供商配置点击
@@ -781,6 +811,49 @@ const TranslationSettings: React.FC = () => {
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={handleAddForbiddenWebsite}
+              >
+                添加
+              </Button>
+            </Flex>
+          </StyledCard>
+        </StyledSection>
+
+        {/* 总是翻译的网址 */}
+        <StyledSection>
+          <StyledCard>
+            <Label>总是翻译的网址</Label>
+            <Paragraph style={{ padding: '0 12px' }}>
+              在这些网站上将始终启用页面翻译功能，无论原始语言是什么
+            </Paragraph>
+
+            <div style={{ padding: '0 12px', marginBottom: 16 }}>
+              <Space size={[0, 8]} wrap>
+                {(alwaysTranslateWebsites || []).map((site: string) => (
+                  <Tag
+                    key={site}
+                    closable
+                    color="blue"
+                    onClose={() => handleRemoveAlwaysTranslateWebsite(site)}
+                    style={{ marginBottom: 8 }}
+                  >
+                    {site}
+                  </Tag>
+                ))}
+              </Space>
+            </div>
+
+            <Flex style={{ padding: '0 12px' }}>
+              <Input
+                placeholder="输入网站域名 (例如: example.com)"
+                value={alwaysTranslateWebsite}
+                onChange={(e) => setAlwaysTranslateWebsite(e.target.value)}
+                style={{ marginRight: 8 }}
+                onPressEnter={handleAddAlwaysTranslateWebsite}
+              />
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleAddAlwaysTranslateWebsite}
               >
                 添加
               </Button>

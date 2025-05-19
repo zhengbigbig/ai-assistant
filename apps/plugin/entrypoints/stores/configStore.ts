@@ -65,6 +65,7 @@ export interface TranslationSettings {
   // 样式详情列表
   customStyles: CustomStyleConfig[];
   forbiddenWebsites: string[];
+  alwaysTranslateWebsites: string[];
   enableVideoSubtitleTranslation: boolean;
   enableInputTranslation: boolean;
   enableHoverTranslation: boolean;
@@ -399,6 +400,7 @@ export const useConfigStore = create<ConfigState>()(
         displayStyle: DEFAULT_CUSTOM_STYLE_TEMPLATES[0].name,
         customStyles: DEFAULT_CUSTOM_STYLE_TEMPLATES,
         forbiddenWebsites: [],
+        alwaysTranslateWebsites: [],
         enableVideoSubtitleTranslation: true,
         enableInputTranslation: false,
         enableHoverTranslation: true,
