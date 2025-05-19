@@ -52,7 +52,18 @@ const PageTranslator: React.FC = () => {
   const isTranslated = pageLanguageState === 'translated';
   // 检查当前网站是否在禁止翻译列表中
   const isWebsiteForbidden = (): boolean => {
+    console.log('forbiddenWebsites',forbiddenWebsites,ctx)
     if (!forbiddenWebsites || forbiddenWebsites.length === 0) return false;
+
+    // 确保ctx和tabHostName存在
+    if (!ctx || !ctx.tabHostName) {
+      // 使用window.location.hostname作为备选
+      const currentHostname = window.location.hostname;
+      return forbiddenWebsites.some(
+        (site: string) =>
+          currentHostname === site || currentHostname.endsWith('.' + site)
+      );
+    }
 
     const currentHostname = ctx.tabHostName;
     return forbiddenWebsites.some(
@@ -126,17 +137,33 @@ const PageTranslator: React.FC = () => {
                   location.hostname !== 'translate.google.com' &&
                   location.hostname !== 'translate.yandex.com'
                 ) {
+                  console.log('useTranslationStore.getState().pageLanguageState',useTranslationStore.getState().pageLanguageState)
+                  console.log('chrome.extension.inIncognitoContext',chrome.extension.inIncognitoContext)
                   // 如果页面是原始状态且不在隐私浏览模式下
                   if (
                     useTranslationStore.getState().pageLanguageState ===
                       'original' &&
                     !chrome.extension.inIncognitoContext
                   ) {
+                    // 确保此时的ctx已经被初始化完成
+                    // 获取当前最新的ctx状态
+                    const currentCtx = useTranslationStore.getState().ctx;
+                    console.log('currentCtx in auto translate', currentCtx);
+
+                    // 使用当前网站地址直接判断是否在禁止翻译列表中
+                    const hostname = window.location.hostname;
+                    const isForbidden = forbiddenWebsites && forbiddenWebsites.some(
+                      (site: string) => hostname === site || hostname.endsWith('.' + site)
+                    );
+
+                    console.log('isForbidden', isForbidden);
+
                     // 如果当前网站不在"永不翻译的网站"列表中
-                    if (!isWebsiteForbidden()) {
+                    if (!isForbidden) {
                       const currentTargetLanguage =
                         useConfigStore.getState().translation.targetLanguage;
                       // 如果语言代码有效，且不是目标语言，且在"总是翻译的语言"列表中，则翻译页面
+                      console.log(111,langCode,currentTargetLanguage)
                       if (langCode && langCode !== currentTargetLanguage) {
                         translatePage();
                       }
