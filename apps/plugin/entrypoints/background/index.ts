@@ -247,9 +247,79 @@ export default defineBackground(() => {
   // 监听来自内容脚本或弹出窗口的消息
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Background script received message:', message);
+    if (message.action === 'captureScreenshot') {
+      console.log('Handling captureScreenshot action');
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          console.log('Capturing screenshot for tab:', tabs[0].id);
+          captureVisibleTab(tabs[0].id);
+        } else {
+          console.error('No active tab found');
+        }
+      });
+      sendResponse({ success: true });
+    } else if (message.action === 'captureVisibleTabForScroll') {
+      // 处理滚动截图过程中对可见区域的捕获请求
+      console.log('Handling captureVisibleTabForScroll action');
 
-    // 处理不同类型的消息
-    if (message.action === 'getActiveTab') {
+      if (!sender.tab?.id) {
+        console.error('Cannot capture tab: no tab ID');
+        sendResponse({ error: '无法获取标签页ID' });
+        return true;
+      }
+
+      try {
+        chrome.tabs.captureVisibleTab(
+          { format: 'png', quality: 100 },
+          (dataUrl) => {
+            if (chrome.runtime.lastError) {
+              console.error('Screenshot error during scroll capture:', chrome.runtime.lastError);
+              sendResponse({ error: chrome.runtime.lastError.message });
+              return;
+            }
+
+            console.log('Scroll screenshot captured successfully');
+            sendResponse({ dataUrl });
+          }
+        );
+      } catch (error) {
+        console.error('Error during scroll screenshot capture:', error);
+        sendResponse({ error: String(error) });
+      }
+
+      return true; // 保持消息通道打开以进行异步响应
+    }else if (message.action === 'openSidePanel') {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          chrome.sidePanel.open({ tabId: tabs[0].id }).catch(err => {
+            console.error('Failed to open side panel:', err);
+          });
+        }
+      });
+      sendResponse({ success: true });
+    }else if (message.action === 'addScreenshot') {
+      console.log('Forwarding screenshot data to side panel');
+      // 转发截图数据到侧边栏
+      chrome.runtime.sendMessage({
+        action: 'addScreenshot',
+        imageUrl: message.imageUrl,
+        text: message.text || '区域截图',
+        addToInput: message.addToInput || false // 传递addToInput参数
+      });
+      sendResponse({ success: true });
+    } else if (message.action === 'startAreaScreenshot') {
+      console.log('Handling startAreaScreenshot action');
+      // 在当前标签页启动区域截图模式
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          console.log('Starting area screenshot for tab:', tabs[0].id);
+          startAreaScreenshot(tabs[0].id);
+        } else {
+          console.error('No active tab found');
+        }
+      });
+      sendResponse({ success: true });
+    }else if (message.action === 'getActiveTab') {
       // 获取当前活动标签页
       handleGetActiveTab(sendResponse);
       return true; // 异步响应
@@ -359,8 +429,8 @@ export default defineBackground(() => {
           console.error('翻译失败:', error);
           sendResponse({ error: '翻译失败: ' + (error as Error).message });
         });
-        return true;
-    } else if (message.action === 'translateText'){
+      return true;
+    } else if (message.action === 'translateText') {
       translationService
         .translateText(
           message.serviceName,
@@ -409,9 +479,12 @@ export default defineBackground(() => {
     if (details.reason === 'install') {
       // 设置上下文菜单
       setupContextMenus();
-    } else if (details.reason === 'update' && details.previousVersion !== chrome.runtime.getManifest().version) {
+    } else if (
+      details.reason === 'update' &&
+      details.previousVersion !== chrome.runtime.getManifest().version
+    ) {
       // 清除翻译缓存
-      translationCache.deleteTranslationCache()
+      translationCache.deleteTranslationCache();
     }
   });
 
