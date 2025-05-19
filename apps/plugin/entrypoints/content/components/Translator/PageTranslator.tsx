@@ -1,18 +1,17 @@
+import { injectCustomStyleToHtml } from '@/utils/css';
 import {
-  ClockCircleOutlined,
   CloseCircleOutlined,
-  CloseOutlined,
   CommentOutlined,
   CustomerServiceOutlined,
   SettingFilled,
-  TranslationOutlined,
+  TranslationOutlined
 } from '@ant-design/icons';
-import { Button, Dropdown, FloatButton, Menu } from 'antd';
-import React, { useEffect, useState } from 'react';
+import { FloatButton } from 'antd';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
+import { languages } from '../../../../utils/languages';
 import { useConfigStore, useTranslation } from '../../../stores/configStore';
 import { useTranslationStore } from '../../../stores/translationStore';
-import { languages } from '../../../../utils/languages';
 import {
   detectPageLanguage,
   disableMutationObserver,
@@ -20,8 +19,6 @@ import {
   restorePage,
   translatePage,
 } from './helpers';
-import { CUSTOM_STYLE_ELEMENT_ID } from '../../../../constants/config';
-import { injectCustomStyleToHtml } from '@/utils/css';
 
 const CloseIcon = styled(CloseCircleOutlined)`
   color: rgba(0, 0, 0, 0.45);
@@ -40,7 +37,12 @@ const PageTranslator: React.FC = () => {
 
   // 从store获取翻译设置
   const translation = useTranslation();
-  const { forbiddenWebsites, displayStyle, customStyles, alwaysTranslateWebsites } = translation;
+  const {
+    forbiddenWebsites,
+    displayStyle,
+    customStyles,
+    alwaysTranslateWebsites,
+  } = translation;
   const currentCustomStyle = customStyles?.find(
     (c) => c?.name === displayStyle
   )?.css;
@@ -52,38 +54,61 @@ const PageTranslator: React.FC = () => {
   );
   // 是否已经翻译
   const isTranslated = pageLanguageState === 'translated';
+
+  // 统一处理翻译/恢复逻辑，确保页面点击和菜单点击行为一致
+  const handleTranslation = useCallback(() => {
+    // 更新样式
+    injectCustomStyleToHtml(currentCustomStyle || '');
+    console.log('handleTranslation', isTranslated);
+    // 判断是否已翻译，若已翻译则恢复，否则翻译
+    if (isTranslated) {
+      restorePage();
+    } else {
+      translatePage();
+    }
+  }, [isTranslated, currentCustomStyle]);
+
   // 检查当前网站是否在禁止翻译列表中
   const isWebsiteForbidden = (): boolean => {
     if (!forbiddenWebsites || forbiddenWebsites.length === 0) return false;
 
     const currentHostname = ctx.tabHostName;
-    return forbiddenWebsites.some(
-      (site: string) =>
-        site?.includes(currentHostname)
+    return forbiddenWebsites.some((site: string) =>
+      site?.includes(currentHostname)
     );
   };
 
   // 检查当前网站是否在总是翻译列表中
   const isWebsiteAlwaysTranslate = (): boolean => {
-    if (!alwaysTranslateWebsites || alwaysTranslateWebsites.length === 0) return false;
+    if (!alwaysTranslateWebsites || alwaysTranslateWebsites.length === 0)
+      return false;
 
     const currentHostname = ctx.tabHostName;
-    return alwaysTranslateWebsites.some(
-      (site: string) =>
-        site?.includes(currentHostname)
+    return alwaysTranslateWebsites.some((site: string) =>
+      site?.includes(currentHostname)
     );
   };
 
   // 监听background的消息
   useEffect(() => {
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // 为避免重复监听，确保先移除之前的监听器
+    const messageListener = (
+      request: any,
+      sender: chrome.runtime.MessageSender,
+      sendResponse: (response?: any) => void
+    ) => {
       if (request.action === 'translatePage') {
-        // 翻译页面前更新样式
-        injectCustomStyleToHtml(currentCustomStyle || '');
-        translatePage();
+        handleTranslation();
       }
-    });
-  }, []);
+      sendResponse({ success: true });
+    };
+    chrome.runtime.onMessage.addListener(messageListener);
+
+    // 组件卸载时移除监听器
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
+  }, [handleTranslation]);
 
   // 监听自定义样式变更
   useEffect(() => {
@@ -102,7 +127,7 @@ const PageTranslator: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if(!ctx?.tabHostName){
+    if (!ctx?.tabHostName) {
       return;
     }
     // 当前窗口是顶层窗口
@@ -300,17 +325,7 @@ const PageTranslator: React.FC = () => {
         onMouseMove={() => setSettingOpen(true)}
         onMouseLeave={() => setSettingOpen(false)}
         icon={isTranslated ? <TranslationOutlined /> : <TranslationOutlined />}
-        onClick={() => {
-          if (isTranslated) {
-            // 恢复页面前更新样式
-            injectCustomStyleToHtml(currentCustomStyle || '');
-            restorePage();
-          } else {
-            // 翻译页面前更新样式
-            injectCustomStyleToHtml(currentCustomStyle || '');
-            translatePage();
-          }
-        }}
+        onClick={handleTranslation}
       />
       <FloatButton />
       <FloatButton icon={<CommentOutlined />} />

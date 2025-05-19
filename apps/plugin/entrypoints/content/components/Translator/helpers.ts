@@ -352,6 +352,11 @@ export const restorePage = () => {
   const originalTabLanguage =
     useTranslationStore.getState().originalTabLanguage;
   useTranslationStore.getState().setCurrentPageLanguage(originalTabLanguage);
+  // 通知背景脚本翻译状态已变更
+  chrome.runtime.sendMessage({
+    action: 'pageLanguageStateChanged',
+    state: 'original',
+  });
   try {
     // 移除复制的节点（用于双语显示）
     const copiedNodes = document.querySelectorAll(
@@ -453,7 +458,9 @@ const clearLineClampRestriction = (node: Node) => {
       node.style.setProperty('-webkit-line-clamp', 'unset');
       node.style.setProperty('line-clamp', 'unset');
       node.style.maxHeight = 'unset';
+      return true;
     }
+    return false;
   }
 };
 
@@ -587,7 +594,11 @@ export const getNodesThatNeedToTranslate = async (
             return NodeFilter.FILTER_REJECT;
           }
           // 双语对照重写节点样式
-          clearLineClampRestriction(node);
+          const isClearLineClampRestriction = clearLineClampRestriction(node);
+          if (isClearLineClampRestriction) {
+            acceptedNodes.add(node);
+            return NodeFilter.FILTER_ACCEPT;
+          }
           // 块级节点，但子节点是文本，接受
           if (
             blockElementsList.includes(node.nodeName) &&
@@ -672,6 +683,7 @@ export const getNodesThatNeedToTranslate = async (
   }
   // 是否双语对照，若是，则复制其节点到页面底部
   if (useConfigStore.getState().translation.displayMode === DisplayMode.DUAL) {
+    console.log('allNodes', allNodes);
     const copiedNodes = allNodes.map((node) => [node, copyNodeToBottom(node)]);
     return copiedNodes;
   }
@@ -717,7 +729,7 @@ export const copyNodeToBottom = (node: Element) => {
   translatedNodeWrapper.setAttribute(TRANSLATE_MARK_ATTR, 'copiedNode');
 
   // 创建翻译节点容器 - 主要控制结构
-  const translatedNodeContainer = document.createElement('div');
+  const translatedNodeContainer = document.createElement('font');
   translatedNodeContainer.classList.add(AI_ASSISTANT_TRANSLATED_CONTAINER);
 
   // 应用基础样式
@@ -816,7 +828,7 @@ export const getPiecesToTranslate = (
               isTranslated: false,
               parentElement: null,
               nodes: [],
-              originalElement: root, // 为新片段添加根元素
+              originalElement: originalNode, // 为新片段添加根元素
             });
             index++; // 移到下一个片段
           }
@@ -845,7 +857,7 @@ export const getPiecesToTranslate = (
                 isTranslated: false,
                 parentElement: null,
                 nodes: [],
-                originalElement: root, // 为新片段添加根元素
+                originalElement: originalNode, // 为新片段添加根元素
               });
               index++;
             }
@@ -859,7 +871,7 @@ export const getPiecesToTranslate = (
                 isTranslated: false,
                 parentElement: null,
                 nodes: [],
-                originalElement: root, // 为新片段添加根元素
+                originalElement: originalNode, // 为新片段添加根元素
               });
               index++;
             }
@@ -923,7 +935,7 @@ export const getPiecesToTranslate = (
             isTranslated: false,
             parentElement: null,
             nodes: [],
-            originalElement: root, // 为新片段添加根元素
+            originalElement: originalNode, // 为新片段添加根元素
           };
           pieceInfo.parentElement = piecesToTranslate[index].parentElement;
           piecesToTranslate.push(pieceInfo);
@@ -1122,10 +1134,25 @@ export const addLoadingIconToNode = (node: Element) => {
 
 // 移除节点的loading图标
 export const removeLoadingIconFromNode = (node: Element) => {
-  // 获取节点子节点内loading图标并移除
-  const loadingIcon = node.querySelector('.ai-assistant-loading-icon');
-  if (loadingIcon) {
-    node.removeChild(loadingIcon);
+  // 检查节点是否存在
+  if (!node) return;
+
+  try {
+    // 获取节点子节点内loading图标
+    const loadingIcon = node.querySelector('.ai-assistant-loading-icon');
+
+    // 确保loading图标存在且是node的子元素
+    if (loadingIcon && node.contains && node.contains(loadingIcon)) {
+      // 使用更安全的方式移除子节点
+      if (loadingIcon.parentNode === node) {
+        node.removeChild(loadingIcon);
+      } else if (loadingIcon.parentNode) {
+        // 如果loading图标不是直接子节点，而是更深层次的子节点
+        loadingIcon.parentNode.removeChild(loadingIcon);
+      }
+    }
+  } catch (error) {
+    console.error('移除loading图标失败', error);
   }
 };
 
@@ -1134,40 +1161,50 @@ export const translatePage = async () => {
   const targetLanguage = useConfigStore.getState().translation.targetLanguage;
   // 增加计数器，用于追踪翻译状态的变化
   useTranslationStore.getState().incrementFooCount();
-  // 首先恢复页面到原始状态
-  restorePage();
-  try {
-    // 获取需要翻译的节点，并从中提取需要翻译的文本片段
-    const newPiecesToTranslate = (
-      await getNodesThatNeedToTranslate(document.body)
-    ).reduce((acc, [node, copiedNode]) => {
-      return acc.concat(getPiecesToTranslate(copiedNode ?? node, node));
-    }, []);
-    useTranslationStore.getState().setPiecesToTranslate(newPiecesToTranslate);
-  } catch (error) {
-    console.error('获取需要翻译的片段失败', error);
-    throw error;
-  }
-  // 获取需要翻译的属性
-  const attributesToTranslate = getAttributesToTranslate();
-  useTranslationStore
-    .getState()
-    .setAttributesToTranslate(attributesToTranslate);
-  // 更新页面语言状态为"已翻译"
-  useTranslationStore.getState().setPageLanguageState('translated');
-  // 更新当前页面语言为目标语言
-  useTranslationStore.getState().setCurrentPageLanguage(targetLanguage);
-  // 启用DOM变化监视器，用于检测动态添加的内容
-  enableMutationObserver();
-  // 将自定义词典转换为压缩映射
-  const customDictionary =
-    useConfigStore.getState().translation.customDictionary;
-  Object.entries(customDictionary).forEach(([key], index) => {
-    compressionMap[index + 1] = key;
-  });
+  // 判断是否翻译过
+  if (useTranslationStore.getState().pageLanguageState === 'translated') {
+    // 如果翻译过，则恢复页面到原始状态
+    restorePage();
+  } else {
+    // 如果未翻译过，则进行翻译
+    try {
+      // 获取需要翻译的节点，并从中提取需要翻译的文本片段
+      const newPiecesToTranslate = (
+        await getNodesThatNeedToTranslate(document.body)
+      ).reduce((acc, [node, copiedNode]) => {
+        return acc.concat(getPiecesToTranslate(copiedNode ?? node, node));
+      }, []);
+      useTranslationStore.getState().setPiecesToTranslate(newPiecesToTranslate);
+    } catch (error) {
+      console.error('获取需要翻译的片段失败', error);
+      throw error;
+    }
+    // 获取需要翻译的属性
+    const attributesToTranslate = getAttributesToTranslate();
+    useTranslationStore
+      .getState()
+      .setAttributesToTranslate(attributesToTranslate);
+    // 更新页面语言状态为"已翻译"
+    useTranslationStore.getState().setPageLanguageState('translated');
+    // 更新当前页面语言为目标语言
+    useTranslationStore.getState().setCurrentPageLanguage(targetLanguage);
+    // 通知背景脚本翻译状态已变更
+    chrome.runtime.sendMessage({
+      action: 'pageLanguageStateChanged',
+      state: 'translated',
+    });
+    // 启用DOM变化监视器，用于检测动态添加的内容
+    enableMutationObserver();
+    // 将自定义词典转换为压缩映射
+    const customDictionary =
+      useConfigStore.getState().translation.customDictionary;
+    Object.entries(customDictionary).forEach(([key], index) => {
+      compressionMap[index + 1] = key;
+    });
 
-  // 开始动态翻译页面
-  translateDynamically();
+    // 开始动态翻译页面
+    translateDynamically();
+  }
 };
 
 let translateNewNodesTimerHandler: NodeJS.Timeout;
@@ -1251,7 +1288,9 @@ async function translateNewNodes() {
         if (!finded) {
           // 添加loading图标
           newPiecesToTranslate.forEach((node: any) => {
-            addLoadingIconToNode(node.originalElement);
+            if (node.originalElement) {
+              addLoadingIconToNode(node.originalElement);
+            }
           });
           // 添加到待翻译列表
           useTranslationStore
@@ -1307,7 +1346,11 @@ async function handleCustomWords(translated: string, originalText: string) {
 
         if (startIndex === -1 && endIndex === -1) {
           break;
-        } else if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
+        } else if (
+          startIndex === -1 ||
+          endIndex === -1 ||
+          endIndex <= startIndex
+        ) {
           // 处理不匹配的标记
           console.warn('标记不匹配，跳过处理', startIndex, endIndex);
           break;
@@ -1335,7 +1378,10 @@ async function handleCustomWords(translated: string, originalText: string) {
 
           // 寻找自定义词典中的匹配项
           // 首先转换keyWord为小写
-          const keyWordLower = typeof keyWord === 'string' ? keyWord.toLowerCase() : String(keyWord).toLowerCase();
+          const keyWordLower =
+            typeof keyWord === 'string'
+              ? keyWord.toLowerCase()
+              : String(keyWord).toLowerCase();
 
           // 尝试找到精确匹配的词
           let customValue = String(keyWord); // 默认使用原始关键词
@@ -1394,11 +1440,15 @@ async function translateResults(
   piecesToTranslateNow: PieceToTranslate[],
   results: any
 ) {
+  console.log('translateResults piecesToTranslateNow', piecesToTranslateNow);
   for (const i in piecesToTranslateNow) {
+    // 确保originalElement存在
+    const originalElement = piecesToTranslateNow[i].originalElement as Element;
+    if (!originalElement) continue;
+
     // 移除loading图标
-    removeLoadingIconFromNode(
-      piecesToTranslateNow[i].originalElement as Element
-    );
+    removeLoadingIconFromNode(originalElement);
+
     for (const j in piecesToTranslateNow[i].nodes) {
       if (results[i][j]) {
         const nodes = piecesToTranslateNow[i].nodes;
@@ -1418,13 +1468,14 @@ async function translateResults(
         )) as string;
         newNode.textContent = result;
         // 替换原节点
-        nodes[j].textContent = result;
+        if (nodes[j]) {
+          nodes[j].textContent = result;
+        }
 
         // 如果是双语对照，恢复复制节点显示
         if (
           useConfigStore.getState().translation.displayMode === DisplayMode.DUAL
         ) {
-          const originalElement = piecesToTranslateNow[i].originalElement;
           if (originalElement) {
             const copiedNode = originalElement.querySelector(
               `[${TRANSLATE_MARK_ATTR}="copiedNode"]`
@@ -1499,8 +1550,12 @@ async function translateDynamically() {
       if (piecesToTranslateNow.length > 0) {
         // 为待翻译节点加上loading图标
         piecesToTranslateNow.forEach((ptt) => {
-          // 给originalElement加上loading图标
-          addLoadingIconToNode(ptt.originalElement as Element);
+          // 确保originalElement存在
+          const originalElement = ptt.originalElement as Element;
+          if (originalElement) {
+            // 给originalElement加上loading图标
+            addLoadingIconToNode(originalElement);
+          }
         });
 
         const results = await backgroundTranslateHTML(

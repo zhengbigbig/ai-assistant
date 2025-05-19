@@ -2,11 +2,12 @@ import { defineContentScript } from '#imports';
 import { createRoot } from 'react-dom/client';
 import { createShadowRootUi } from '#imports';
 import App from './App';
+import { useTranslationStore } from '../stores/translationStore';
 
 // 定义内容脚本
 export default defineContentScript({
   matches: ['*://*/*'],
-  async main(ctx) {
+  async main(ctx: any) {
     console.log('Hello content script.');
 
     const ui = await createShadowRootUi(ctx, {
@@ -15,7 +16,7 @@ export default defineContentScript({
       anchor: 'body',
       append: 'first',
       zIndex: 9999,
-      onMount: (container) => {
+      onMount: (container: { getRootNode: () => ShadowRoot; append: (arg0: HTMLDivElement) => void; }) => {
         // 存储shadowRoot引用
         const globalShadowRoot = container.getRootNode() as ShadowRoot;
 
@@ -26,7 +27,7 @@ export default defineContentScript({
         root.render(<App shadowRoot={globalShadowRoot} />);
         return { root, wrapper };
       },
-      onRemove: (elements) => {
+      onRemove: (elements: { root: { unmount: () => void; }; wrapper: { remove: () => void; }; }) => {
         elements?.root.unmount();
         elements?.wrapper.remove();
       },
@@ -44,6 +45,14 @@ export default defineContentScript({
         if (selectedText) {
           sendResponse({ text: selectedText });
         }
+      } else if (message.action === 'getCurrentPageLanguageState') {
+        // 返回当前页面的翻译状态
+        const state = useTranslationStore.getState().pageLanguageState;
+        sendResponse(state);
+      } else if (message.action === 'getOriginalTabLanguage') {
+        // 返回原始页面语言
+        const originalLanguage = useTranslationStore.getState().originalTabLanguage;
+        sendResponse(originalLanguage);
       }
       // 注意：startAreaScreenshot 消息现在由 ScreenshotManager 组件处理
       return true;

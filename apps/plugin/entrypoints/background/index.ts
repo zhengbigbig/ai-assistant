@@ -4,17 +4,25 @@
  */
 import { defineBackground } from '#imports';
 import { TARGET_LANGUAGE_OPTIONS } from '../../constants/config';
-import { useConfigStore } from '../stores/configStore';
-import { resizeWindow } from './windowResizer';
 import { CONFIG_STORAGE_KEY } from '../../constants/key';
+import { useConfigStore } from '../stores/configStore';
 import { translationService } from './translation';
 import { translationCache } from './translation/cache';
+import { resizeWindow } from './windowResizer';
 
 export default defineBackground(() => {
   console.log('AI 助手后台服务已启动');
 
+  // 存储各个标签页的翻译状态
+  const tabLanguageStates: Record<number, string> = {};
+  // 获取当前活动标签页的翻译状态，默认为'original'
+  const getCurrentPageLanguageState = (tabId?: number): string => {
+    if (!tabId) return 'original';
+    return tabLanguageStates[tabId] || 'original';
+  };
+
   // 初始化上下文菜单
-  function setupContextMenus() {
+  function setupContextMenus(tabId?: number) {
     // 清除所有现有的上下文菜单，以避免重复
     chrome.contextMenus.removeAll(() => {
       // 获取配置信息
@@ -26,6 +34,9 @@ export default defineBackground(() => {
       const targetLanguage = TARGET_LANGUAGE_OPTIONS.find(
         (option) => option.value === translation.targetLanguage
       )?.label;
+
+      // 获取当前标签页的翻译状态
+      const currentPageLanguageState = getCurrentPageLanguageState(tabId);
 
       // 创建"发送选定文本给 AI 助手"菜单项
       chrome.contextMenus.create({
@@ -48,10 +59,12 @@ export default defineBackground(() => {
         contexts: ['page'], // 在任何页面上显示
       });
 
-      // 创建"翻译为目标语言"菜单项
+      // 创建"翻译为目标语言"或"恢复原文"菜单项
       chrome.contextMenus.create({
         id: 'translatePage',
-        title: `翻译为${targetLanguage} [${shortcutTranslatePage}]`,
+        title: currentPageLanguageState === 'translated'
+          ? `恢复原文 [${shortcutTranslatePage}]`
+          : `翻译为${targetLanguage} [${shortcutTranslatePage}]`,
         contexts: ['page'],
       });
 
@@ -100,7 +113,7 @@ export default defineBackground(() => {
   // 处理翻译文本
   function handleTranslatePage(tabId: number) {
     if (!tabId) return;
-
+    console.log('handleTranslatePage', tabId);
     // 发送消息到内容脚本，触发页面翻译
     chrome.tabs.sendMessage(tabId, { action: 'translatePage' }, (response) => {
       if (chrome.runtime.lastError) {
@@ -108,14 +121,6 @@ export default defineBackground(() => {
           'Error sending translatePage message:',
           chrome.runtime.lastError
         );
-
-        // 重试发送消息
-        setTimeout(() => {
-          chrome.tabs.sendMessage(tabId, {
-            action: 'translatePage',
-          });
-        }, 500);
-
         return;
       }
 
@@ -244,6 +249,37 @@ export default defineBackground(() => {
     });
   });
 
+  // 监听标签页切换，更新上下文菜单
+  chrome.tabs.onActivated.addListener((activeInfo) => {
+    // 当标签页切换时，更新菜单以反映当前标签页的翻译状态
+    updateTranslatePageMenuItem(activeInfo.tabId);
+  });
+
+  // 监听页面加载完成，获取初始翻译状态
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete') {
+      // 页面加载完成，查询当前翻译状态
+      chrome.tabs.sendMessage(tabId, { action: 'getCurrentPageLanguageState' }, (response) => {
+        if (chrome.runtime.lastError) {
+          // 可能内容脚本尚未加载，这是正常的
+          console.log('内容脚本尚未准备好:', chrome.runtime.lastError);
+          return;
+        }
+        if (response) {
+          // 更新当前标签页的翻译状态
+          tabLanguageStates[tabId] = response;
+
+          // 如果当前是活动标签页，更新菜单
+          chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+            if (tabs.length > 0 && tabs[0].id === tabId) {
+              updateTranslatePageMenuItem(tabId);
+            }
+          });
+        }
+      });
+    }
+  });
+
   // 监听来自内容脚本或弹出窗口的消息
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Background script received message:', message);
@@ -258,6 +294,37 @@ export default defineBackground(() => {
         }
       });
       sendResponse({ success: true });
+    } else if (message.action === 'pageLanguageStateChanged') {
+      // 更新当前标签页的翻译状态
+      const tabId = sender.tab?.id;
+      if (tabId) {
+        tabLanguageStates[tabId] = message.state;
+        console.log(`Tab ${tabId} language state changed to:`, message.state);
+        // 更新翻译菜单
+        updateTranslatePageMenuItem(tabId);
+      }
+      sendResponse({ success: true });
+    } else if (message.action === 'configChanged') {
+      // 配置变更，更新翻译菜单
+      if (message.change === 'targetLanguage' || message.change === 'shortcutTranslatePage') {
+        // 获取当前活动标签页
+        chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+          if (tabs.length > 0) {
+            updateTranslatePageMenuItem(tabs[0].id);
+          } else {
+            updateTranslatePageMenuItem();
+          }
+        });
+      }
+      sendResponse({ success: true });
+    } else if (message.action === 'getCurrentPageLanguageState') {
+      // 获取当前标签页的翻译状态
+      const tabId = sender.tab?.id;
+      if (tabId) {
+        sendResponse(tabLanguageStates[tabId] || 'original');
+      } else {
+        sendResponse('original');
+      }
     } else if (message.action === 'captureVisibleTabForScroll') {
       // 处理滚动截图过程中对可见区域的捕获请求
       console.log('Handling captureVisibleTabForScroll action');
@@ -288,7 +355,7 @@ export default defineBackground(() => {
       }
 
       return true; // 保持消息通道打开以进行异步响应
-    }else if (message.action === 'openSidePanel') {
+    } else if (message.action === 'openSidePanel') {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]?.id) {
           chrome.sidePanel.open({ tabId: tabs[0].id }).catch(err => {
@@ -297,7 +364,7 @@ export default defineBackground(() => {
         }
       });
       sendResponse({ success: true });
-    }else if (message.action === 'addScreenshot') {
+    } else if (message.action === 'addScreenshot') {
       console.log('Forwarding screenshot data to side panel');
       // 转发截图数据到侧边栏
       chrome.runtime.sendMessage({
@@ -319,7 +386,7 @@ export default defineBackground(() => {
         }
       });
       sendResponse({ success: true });
-    }else if (message.action === 'getActiveTab') {
+    } else if (message.action === 'getActiveTab') {
       // 获取当前活动标签页
       handleGetActiveTab(sendResponse);
       return true; // 异步响应
@@ -374,15 +441,17 @@ export default defineBackground(() => {
     } else if (message.action === 'detectTabLanguage') {
       if (!message.tabId) {
         sendResponse('und');
-        return;
+        return true;
       }
       try {
         chrome.tabs.detectLanguage(message.tabId, function (result) {
           sendResponse(result);
         });
+        return true;
       } catch (error) {
         console.error('Error during detectTabLanguage:', error);
         sendResponse('und');
+        return true;
       }
     } else if (message.action === 'getMainFramePageLanguageState') {
       chrome.tabs.sendMessage(
@@ -395,6 +464,7 @@ export default defineBackground(() => {
           sendResponse(pageLanguageState);
         }
       );
+      return true;
     } else if (message.action === 'getMainFrameTabLanguage') {
       chrome.tabs.sendMessage(
         message.tabId,
@@ -406,12 +476,12 @@ export default defineBackground(() => {
           sendResponse(tabLanguage);
         }
       );
+      return true;
     } else if (message.action === 'translateHTML') {
       const dontSaveInPersistentCache = sender.tab
         ? sender.tab.incognito
         : false;
       const serviceName = message.serviceName;
-      // const sourceLanguage = message.sourceLanguage;
       const targetLanguage = message.targetLanguage;
       const sourceArray2d = message.sourceArray2d;
       translationService
@@ -465,6 +535,7 @@ export default defineBackground(() => {
         });
       return true;
     }
+    return true;
   });
 
   // 设置侧边栏默认打开位置
@@ -504,16 +575,37 @@ export default defineBackground(() => {
       newTargetLanguage !== lastTargetLanguage ||
       newShortcutTranslatePage !== lastShortcutTranslatePage
     ) {
-      // 更新右键菜单
-      const targetLanguageLabel = TARGET_LANGUAGE_OPTIONS.find(
-        (option) => option.value === newTargetLanguage
-      )?.label;
-
-      chrome.contextMenus.update('translatePage', {
-        title: `翻译为${targetLanguageLabel} [${newShortcutTranslatePage}]`,
-      });
+      updateTranslatePageMenuItem();
     }
   });
+
+  // 更新翻译菜单项文本
+  function updateTranslatePageMenuItem(tabId?: number) {
+    const configStore = useConfigStore.getState();
+
+    // 获取配置信息
+    const targetLanguage = TARGET_LANGUAGE_OPTIONS.find(
+      (option) => option.value === configStore.translation.targetLanguage
+    )?.label;
+    const shortcutTranslatePage = configStore.keyboardShortcuts.shortcutTranslatePage;
+
+    // 获取当前标签页的翻译状态
+    const currentPageLanguageState = getCurrentPageLanguageState(tabId);
+
+    // 根据当前翻译状态显示不同的菜单标题
+    const menuTitle = currentPageLanguageState === 'translated'
+      ? `恢复原文 [${shortcutTranslatePage}]`
+      : `翻译为${targetLanguage} [${shortcutTranslatePage}]`;
+
+    // 更新右键菜单
+    chrome.contextMenus.update('translatePage', {
+      title: menuTitle,
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error('更新菜单失败:', chrome.runtime.lastError);
+      }
+    });
+  }
 
   // 处理获取活动标签页
   function handleGetActiveTab(sendResponse: (response?: any) => void) {

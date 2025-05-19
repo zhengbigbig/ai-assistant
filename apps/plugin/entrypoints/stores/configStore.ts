@@ -608,10 +608,25 @@ export const useConfigStore = create<ConfigState>()(
       updateKeyboardShortcuts: (settings: Partial<KeyboardShortcutsSettings>) =>
         set(
           produce((state: ConfigState) => {
+            const oldShortcutTranslatePage = state.keyboardShortcuts.shortcutTranslatePage;
             state.keyboardShortcuts = {
               ...state.keyboardShortcuts,
               ...settings,
             };
+
+            // 检查翻译页面快捷键是否发生变化
+            if (settings.shortcutTranslatePage && settings.shortcutTranslatePage !== oldShortcutTranslatePage) {
+              try {
+                // 通知背景脚本更新菜单
+                chrome.runtime.sendMessage({
+                  action: 'configChanged',
+                  change: 'shortcutTranslatePage',
+                  value: settings.shortcutTranslatePage
+                });
+              } catch (e) {
+                console.error('通知背景脚本更新菜单失败:', e);
+              }
+            }
           })
         ),
 
@@ -683,10 +698,25 @@ export const useConfigStore = create<ConfigState>()(
       updateTranslation: (settings: Partial<TranslationSettings>) =>
         set(
           produce((state: ConfigState) => {
+            const oldTargetLanguage = state.translation.targetLanguage;
             state.translation = {
               ...state.translation,
               ...settings,
             };
+
+            // 检查目标语言是否发生变化
+            if (settings.targetLanguage && settings.targetLanguage !== oldTargetLanguage) {
+              try {
+                // 通知背景脚本更新菜单
+                chrome.runtime.sendMessage({
+                  action: 'configChanged',
+                  change: 'targetLanguage',
+                  value: settings.targetLanguage
+                });
+              } catch (e) {
+                console.error('通知背景脚本更新菜单失败:', e);
+              }
+            }
           })
         ),
 
