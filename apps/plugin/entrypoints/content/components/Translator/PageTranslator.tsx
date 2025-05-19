@@ -291,7 +291,7 @@ const PageTranslator: React.FC = () => {
             // 打开翻译设置面板
             chrome.runtime.sendMessage({
               action: 'openOptionsPage',
-              hash: '#/translation',
+              hash: '?activeMenuKey=translation',
             });
           }}
         />

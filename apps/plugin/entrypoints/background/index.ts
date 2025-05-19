@@ -455,18 +455,19 @@ export default defineBackground(() => {
 
   // 处理打开选项页面
   function handleOpenOptionsPage(hash?: string) {
-    // 打开选项页面，可以带上哈希值以直接导航到特定页面
+    // 打开选项页面，可以带上查询参数以直接导航到特定页面
     if (hash) {
-      chrome.runtime.openOptionsPage(() => {
-        // 打开后延迟一下再修改hash，确保页面已加载
-        setTimeout(() => {
-          chrome.runtime.sendMessage({
-            action: 'navigateOptionsTo',
-            hash,
-          });
-        }, 300);
+      // 构建完整的选项页面URL
+      const optionsUrl = chrome.runtime.getURL('options.html') + hash;
+
+      // 使用 chrome.tabs.create 直接打开带有查询参数的URL
+      chrome.tabs.create({ url: optionsUrl }, (tab) => {
+        if (chrome.runtime.lastError) {
+          console.error('打开选项页面失败:', chrome.runtime.lastError);
+        }
       });
     } else {
+      // 如果没有传递查询参数，使用默认的 openOptionsPage 方法
       chrome.runtime.openOptionsPage();
     }
   }
