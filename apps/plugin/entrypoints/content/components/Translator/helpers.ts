@@ -194,6 +194,16 @@ const isDuplicatedChild = (array: Element[], child: Element): boolean => {
   return false;
 };
 
+// 获取最近的块级元素节点
+export const getNearestBlockElement = (element: Element): Element | null => {
+  // 从当前元素开始向上查找
+  let current: Element | null = element;
+  while (current && !BLOCK_ELEMENTS.includes(current.nodeName)) {
+    current = current.parentElement;
+  }
+  return current;
+};
+
 // 获取主要内容容器
 const getContainers = (
   root: Element,
@@ -774,7 +784,7 @@ export const copyNodeToBottom = (node: Element) => {
 // 获取需要翻译的节点
 export const getPiecesToTranslate = (
   root = document.body,
-  originalNode = null
+  originalNode: Element | null = null
 ): {
   isTranslated: boolean;
   parentElement: Element | null;
@@ -1207,6 +1217,93 @@ export const translatePage = async () => {
   }
 };
 
+// 找到最近的块级节点
+export const findNearestBlockElement = (element: HTMLElement) => {
+  // 向上遍历父元素，直到找到块级元素
+  let currentElement: HTMLElement | null = element;
+  while (
+    currentElement &&
+    !['BLOCK', 'INLINE-BLOCK'].includes(currentElement.style.display)
+  ) {
+    currentElement = currentElement.parentElement;
+  }
+  return currentElement;
+};
+
+// 鼠标hover翻译指定element
+export const hoverTranslateElement = async (element: Element): Promise<void> => {
+  // 检查element是否存在
+  if (!element) return;
+
+  // 判断是否是双语对照模式下被翻译的节点，若是则隐藏
+  const copiedNode = element.querySelector(
+    `[${TRANSLATE_MARK_ATTR}="copiedNode"]`
+  );
+  // 判断节点是否存在则display不为none
+  if (copiedNode) {
+    const display = window.getComputedStyle(copiedNode).display;
+    if (display !== 'none') {
+      (copiedNode as HTMLElement).style.display = 'none';
+    } else {
+      // 移除其display属性
+      (copiedNode as HTMLElement).style.removeProperty('display');
+    }
+    return;
+  }
+
+  // 判断class是否有notranslate，有则直接return
+  if (element.classList.contains('notranslate')) {
+    // 可以在这里添加一个提示，表明此元素无需翻译
+    return;
+  }
+
+  // 获取需要翻译的节点，并从中提取需要翻译的文本片段
+  const piecesToTranslateNow = getPiecesToTranslate(
+    copyNodeToBottom(element) ?? element,
+    element as Element
+  ) as PieceToTranslate[];
+
+  // 将自定义词典转换为压缩映射
+  const customDictionary =
+    useConfigStore.getState().translation.customDictionary;
+  Object.entries(customDictionary).forEach(([key], index) => {
+    compressionMap[index + 1] = key;
+  });
+
+  if (piecesToTranslateNow.length > 0) {
+    // 为待翻译节点加上loading图标
+    piecesToTranslateNow.forEach((ptt: PieceToTranslate) => {
+      // 确保originalElement存在
+      const originalElement = ptt.originalElement as Element;
+      if (originalElement) {
+        // 给originalElement加上loading图标
+        addLoadingIconToNode(originalElement);
+      }
+    });
+
+    try {
+      const results = await backgroundTranslateHTML(
+        piecesToTranslateNow.map((ptt) =>
+          ptt.nodes.map((node) => {
+            return filterKeywordsInText(node.textContent || '');
+          })
+        )
+      );
+      await translateResults(piecesToTranslateNow, results);
+    } catch (error) {
+      console.error('翻译过程中发生错误:', error);
+
+      // 移除loading图标，避免界面卡住
+      piecesToTranslateNow.forEach((ptt: PieceToTranslate) => {
+        const originalElement = ptt.originalElement as Element;
+        if (originalElement) {
+          removeLoadingIconFromNode(originalElement);
+        }
+      });
+    }
+  }
+};
+
 let translateNewNodesTimerHandler: NodeJS.Timeout;
 // DOM变化监视器
 const mutationObserver = new MutationObserver(function (mutations) {
@@ -1440,7 +1537,6 @@ async function translateResults(
   piecesToTranslateNow: PieceToTranslate[],
   results: any
 ) {
-  console.log('translateResults piecesToTranslateNow', piecesToTranslateNow);
   for (const i in piecesToTranslateNow) {
     // 确保originalElement存在
     const originalElement = piecesToTranslateNow[i].originalElement as Element;
@@ -1472,6 +1568,14 @@ async function translateResults(
           nodes[j].textContent = result;
         }
 
+        // 从originalElement开始到下级所有节点添加notranslate class
+        if (originalElement) {
+          originalElement.classList.add('notranslate');
+          const allNodes = originalElement.querySelectorAll('*');
+          allNodes.forEach((node) => {
+            node.classList.add('notranslate');
+          });
+        }
         // 如果是双语对照，恢复复制节点显示
         if (
           useConfigStore.getState().translation.displayMode === DisplayMode.DUAL

@@ -301,7 +301,6 @@ export const useConfigStore = create<ConfigState>()(
         triggerCondition: 'selectText',
         forbiddenWebsites: [
           'baidu.com',
-          'github.com',
           'gitlab.com',
           'bitbucket.org',
           'stackoverflow.com',

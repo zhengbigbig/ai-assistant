@@ -1,177 +1,176 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Card, Spin, Typography } from 'antd';
-import styled from 'styled-components';
-import { useTranslation } from '../../../stores/configStore';
-import { TranslationHotkey } from '../../../../constants/config';
+import { TranslationHotkey } from '@/constants/config';
+import { useConfigStore } from '@/entrypoints/stores/configStore';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { getNearestBlockElement, hoverTranslateElement } from './helpers';
 
-const { Text } = Typography;
-
-// 悬停翻译卡片容器
-const HoverCard = styled(Card)<{ $visible: boolean }>`
-  position: fixed;
-  z-index: 99999;
-  max-width: 400px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 0;
-  display: ${props => (props.$visible ? 'block' : 'none')};
-`;
-
-// 原文样式
-const OriginalText = styled(Text)`
-  display: block;
-  color: rgba(0, 0, 0, 0.65);
-  margin-bottom: 8px;
-  font-size: 14px;
-`;
-
-// 译文样式
-const TranslatedText = styled(Text)`
-  display: block;
-  font-weight: 500;
-  font-size: 14px;
-`;
-
-// 获取正确的热键处理函数
-const getHotkeyHandler = (hotkey: string): string => {
-  switch (hotkey) {
-    case TranslationHotkey.OPTION:
-      return 'altKey';
-    case TranslationHotkey.COMMAND:
-      return 'metaKey';
-    case TranslationHotkey.SHIFT:
-      return 'shiftKey';
-    default:
-      return 'altKey';
-  }
-};
-
-// 悬停翻译组件
+/**
+ * 悬停翻译组件
+ * 监听鼠标悬停和快捷键事件，触发翻译功能
+ * 交互方式：先鼠标悬停在元素上，再按下快捷键进行翻译切换
+ */
 const HoverTranslator: React.FC = () => {
-  // 从store获取鼠标悬停翻译设置
-  const translation = useTranslation();
-  const { enableHoverTranslation, hoverHotkey, hoverTranslationService } = translation;
+  // 保存当前悬停的元素
+  const [hoverElement, setHoverElement] = useState<Element | null>(null);
+  // 延迟更新悬停元素的计时器
+  const hoverTimerRef = useRef<number | null>(null);
+  // 获取翻译配置
+  const translationConfig = useConfigStore(state => state.translation);
+  // 当前热键配置引用
+  const currentHotkeyRef = useRef(translationConfig.hoverHotkey || TranslationHotkey.OPTION);
+  // 添加防重复执行标记
+  const isTranslatingRef = useRef(false);
 
-  // 悬停翻译状态
-  const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [visible, setVisible] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [originalText, setOriginalText] = useState<string>('');
-  const [translatedText, setTranslatedText] = useState<string>('');
-  const activeNode = useRef<Node | null>(null);
-  const isHotkeyPressed = useRef<boolean>(false);
+  // 计算翻译块的位置
+  const calculatePosition = useCallback((element: Element) => {
+    if (!element) return;
 
-  // 获取热键处理函数
-  const hotkeyHandler = getHotkeyHandler(hoverHotkey);
+    // 获取元素在视口中的位置
+    const rect = element.getBoundingClientRect();
 
-  // 设置鼠标移动事件和按键事件监听
-  useEffect(() => {
-    if (!enableHoverTranslation) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event[hotkeyHandler as keyof KeyboardEvent]) {
-        isHotkeyPressed.current = true;
-      }
+    // 这里可以返回元素的位置信息，以便在需要时使用
+    return {
+      top: rect.top,
+      left: rect.left,
+      bottom: rect.bottom,
+      right: rect.right,
+      width: rect.width,
+      height: rect.height,
     };
+  }, []);
 
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (!event[hotkeyHandler as keyof KeyboardEvent]) {
-        isHotkeyPressed.current = false;
-        // 热键松开时隐藏翻译卡片
-        setVisible(false);
-      }
-    };
-
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!isHotkeyPressed.current) return;
-
-      // 获取鼠标下方的文本节点
-      const range = document.caretRangeFromPoint(event.clientX, event.clientY);
-      if (!range) return;
-
-      const node = range.startContainer;
-
-      // 如果是文本节点且包含内容，则显示翻译卡片
-      if (node.nodeType === Node.TEXT_NODE && node.textContent && node.textContent.trim() !== '') {
-        // 如果是同一个节点，不重复翻译
-        if (node === activeNode.current) return;
-
-        activeNode.current = node;
-
-        // 获取待翻译的文本
-        const text = node.textContent.trim();
-        if (text.length < 2) return;
-
-        // 设置卡片位置
-        setPosition({
-          x: event.clientX,
-          y: event.clientY + 20 // 在鼠标下方20px处显示
-        });
-
-        // 设置原文并翻译
-        setOriginalText(text);
-        translateText(text);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handleKeyUp);
-    document.addEventListener('mousemove', handleMouseMove);
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('keyup', handleKeyUp);
-      document.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, [enableHoverTranslation, hotkeyHandler]);
-
-  // 翻译文本函数
-  const translateText = async (text: string) => {
-    if (!text) return;
-
-    setLoading(true);
-    setVisible(true);
-
-    try {
-      // 发送消息到后台脚本进行翻译
-      const result = await chrome.runtime.sendMessage({
-        action: 'translateText',
-        translationService: hoverTranslationService,
-        targetLanguage: translation.targetLanguage,
-        sourceText: text
-      });
-
-      if (!result || result.error) {
-        throw new Error(result?.error || '翻译失败');
-      }
-
-      setTranslatedText(result.translatedText);
-    } catch (error) {
-      console.error('悬停翻译出错:', error);
-      setTranslatedText('翻译失败，请重试');
-    } finally {
-      setLoading(false);
+  // 处理翻译功能
+  const handleTranslation = useCallback((element: Element) => {
+    if (!element || isTranslatingRef.current) {
+      return;
     }
-  };
 
-  // 如果不启用悬停翻译，不渲染组件
-  if (!enableHoverTranslation) {
-    return null;
-  }
+    // 设置防重复执行标记
+    isTranslatingRef.current = true;
 
-  return (
-    <HoverCard
-      $visible={visible}
-      style={{ left: position.x, top: position.y }}
-      size="small"
-      variant="outlined"
-    >
-      <Spin spinning={loading} size="small">
-        <OriginalText>{originalText}</OriginalText>
-        <TranslatedText>{translatedText}</TranslatedText>
-      </Spin>
-    </HoverCard>
-  );
+    // 调用翻译函数
+    hoverTranslateElement(element).finally(() => {
+      // 延迟重置标记，避免快速重复触发
+      setTimeout(() => {
+        isTranslatingRef.current = false;
+      }, 100);
+    });
+
+  }, []);
+
+  // 检查是否匹配热键配置
+  const isHotkeyMatch = useCallback((e: KeyboardEvent): boolean => {
+    // 使用引用的热键配置，而不是直接从translationConfig获取
+    const hoverHotkey = currentHotkeyRef.current;
+    // 根据不同的热键配置检查对应的按键状态
+    switch (hoverHotkey) {
+      case TranslationHotkey.OPTION:
+        return e.altKey; // Mac的Option键 / Windows的Alt键
+      case TranslationHotkey.COMMAND:
+        return e.metaKey || e.ctrlKey; // Mac的Command键 / Windows的Ctrl键
+      case TranslationHotkey.SHIFT:
+        return e.shiftKey; // 两个平台的Shift键
+      default:
+        return false;
+    }
+  }, []);
+
+  // 处理键盘事件
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // 必须先有悬停元素，再检查快捷键是否匹配
+    if (!hoverElement) {
+      return;
+    }
+
+    if (!isHotkeyMatch(e)) {
+      return;
+    }
+
+    // 阻止事件冒泡和默认行为，防止重复触发
+    e.stopPropagation();
+    e.preventDefault();
+
+    handleTranslation(hoverElement);
+  }, [hoverElement, isHotkeyMatch, handleTranslation]);
+
+  // 主动初始化鼠标追踪
+  useEffect(() => {
+    // 在组件加载时模拟一次鼠标移动事件
+    const initMousePosition = () => {
+      const mouseEvent = new MouseEvent('mousemove', {
+        clientX: window.innerWidth / 2,
+        clientY: window.innerHeight / 2,
+      });
+      document.dispatchEvent(mouseEvent);
+    };
+
+    // 组件挂载后稍微延迟，等待页面完全加载
+    const timer = setTimeout(initMousePosition, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 监听配置变化并更新热键
+  useEffect(() => {
+    // 更新热键配置引用
+    currentHotkeyRef.current = translationConfig.hoverHotkey || TranslationHotkey.OPTION;
+  }, [translationConfig]);
+
+  // 主要的事件注册逻辑
+  useEffect(() => {
+    // 获取是否启用悬停翻译
+    const enableHoverTranslation = translationConfig.enableHoverTranslation ?? false;
+
+    if (!enableHoverTranslation) {
+      return;
+    }
+
+    // 监听鼠标移动事件，用于跟踪鼠标当前悬停的元素
+    const handleMouseMove = (e: MouseEvent) => {
+      // 清除之前的计时器
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current);
+      }
+
+      // 使用计时器延迟更新悬停元素，避免频繁更新
+      hoverTimerRef.current = window.setTimeout(() => {
+        // 获取鼠标下方的元素
+        const element = document.elementFromPoint(e.clientX, e.clientY);
+        if (!element) {
+          setHoverElement(null);
+          return;
+        }
+
+        // 找到最近的块级元素节点，按照BLOCK_ELEMENTS的顺序依次查找
+        const bestElement = getNearestBlockElement(element);
+
+        if (!bestElement) {
+          return;
+        }
+
+        // 如果元素发生变化才更新
+        if (bestElement !== hoverElement) {
+          setHoverElement(bestElement);
+        }
+      }, 100); // 100毫秒的防抖延迟
+    };
+
+    // 只在document上注册事件，避免重复触发
+    document.addEventListener('mousemove', handleMouseMove, { capture: true, passive: true });
+    document.addEventListener('keydown', handleKeyDown, { capture: true });
+
+    // 组件卸载时清理事件监听器
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove, { capture: true });
+      document.removeEventListener('keydown', handleKeyDown, { capture: true });
+
+      // 清除计时器
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, [handleKeyDown, translationConfig.enableHoverTranslation, hoverElement]);
+
+  // 这是一个无UI的功能组件，不需要渲染任何内容
+  return null;
 };
 
 export default HoverTranslator;
