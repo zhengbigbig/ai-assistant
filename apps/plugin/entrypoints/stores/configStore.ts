@@ -299,7 +299,18 @@ export const useConfigStore = create<ConfigState>()(
         enableWriteTextSelection: true,
         hotkey: 'option',
         triggerCondition: 'selectText',
-        forbiddenWebsites: ['google.com', 'bing.com', 'baidu.com'],
+        forbiddenWebsites: [
+          'baidu.com',
+          'github.com',
+          'gitlab.com',
+          'bitbucket.org',
+          'stackoverflow.com',
+          'github.dev',
+          'codepen.io',
+          'codesandbox.io',
+          'replit.com',
+          'jsfiddle.net'
+        ],
       },
 
       // 键盘快捷键设置默认值
@@ -399,7 +410,17 @@ export const useConfigStore = create<ConfigState>()(
         translationService: 'google',
         displayStyle: DEFAULT_CUSTOM_STYLE_TEMPLATES[0].name,
         customStyles: DEFAULT_CUSTOM_STYLE_TEMPLATES,
-        forbiddenWebsites: [],
+        forbiddenWebsites: [
+          'github.com',
+          'gitlab.com',
+          'bitbucket.org',
+          'stackoverflow.com',
+          'github.dev',
+          'codepen.io',
+          'codesandbox.io',
+          'replit.com',
+          'jsfiddle.net'
+        ],
         alwaysTranslateWebsites: [],
         enableVideoSubtitleTranslation: true,
         enableInputTranslation: false,
