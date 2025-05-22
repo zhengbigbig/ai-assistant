@@ -20,7 +20,7 @@ root.render(
           fontSize: 12,
         },
       }}
-      componentSize="small"
+      componentSize="middle"
     >
       <AntdApp>
         <App />

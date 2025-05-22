@@ -86,7 +86,7 @@ const ChatInput = () => {
   const plugins = useChatStore((state) => state.plugins);
   const selectedText = useChatStore((state) => state.selectedText);
   const { token } = theme.useToken();
-
+  console.log("selectedText", selectedText)
   return (
     <Sender
       loading={loading}
@@ -191,9 +191,6 @@ const ChatInput = () => {
                 >
                   <SendButton
                     {...btnProps}
-                    onClick={() => {
-                      chatOpenAI(inputValue);
-                    }}
                   />
                 </Tooltip>
               )}

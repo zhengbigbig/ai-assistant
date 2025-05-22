@@ -338,6 +338,7 @@ const ProviderConfigModal: React.FC<ProviderConfigModalProps> = ({
                       onChange={(checked) =>
                         setModels(models.map(m => m.name === model.name ? { ...m, enabled: checked } : m))
                       }
+                      size="small"
                     />
                   </ModelActions>
                 </ModelItem>

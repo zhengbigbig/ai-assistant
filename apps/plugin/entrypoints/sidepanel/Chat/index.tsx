@@ -7,8 +7,9 @@ import {
 import { Bubble, BubbleProps, Prompts, Welcome } from '@ant-design/x';
 import { Button, Space, Spin, Typography } from 'antd';
 import { createStyles } from 'antd-style';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useChatStore, useMessages } from '../../stores/chatStore';
+import { useActiveSessionId, useSessions, useSessionStore } from '../../stores/sessionStore';
 import ChatInput from './ChatInput';
 import markdownit from 'markdown-it';
 import ChatInputHeader from './ChatInputHeader';
@@ -23,7 +24,6 @@ interface ChatProps {
 const AGENT_PLACEHOLDER = '生成内容中，请稍候...';
 
 const renderMarkdown: BubbleProps['messageRender'] = (content) => {
-  console.log('content', content);
   return (
     <Typography>
       {/* biome-ignore lint/security/noDangerouslySetInnerHtml: used in demo */}
@@ -74,9 +74,27 @@ const useStyles = createStyles(({ token, css }) => {
 const Chat: React.FC<ChatProps> = ({ suggestedPrompts = [] }) => {
   const { styles } = useStyles();
   const messages = useMessages();
-
-  const { setSelectedMessageIndex, chatOpenAI, retryChatOpenAI, copyMessage } =
+  const sessions = useSessions();
+  const activeSessionId = useActiveSessionId();
+  const { createNewSession } = useSessionStore();
+  const { setSelectedMessageIndex, chatOpenAI, retryChatOpenAI, copyMessage, loadMessagesFromSession, initSubscriptions } =
     useChatStore();
+
+  // 初始化订阅
+  useEffect(() => {
+    initSubscriptions();
+  }, [initSubscriptions]);
+
+  // 如果没有活跃会话，创建一个新会话
+  useEffect(() => {
+    if (sessions.length === 0) {
+      // 没有任何会话，创建一个新会话
+      createNewSession();
+    } else if (!activeSessionId) {
+      // 有会话但没有激活的会话，激活第一个会话
+      loadMessagesFromSession(sessions[0].id);
+    }
+  }, [sessions, activeSessionId, createNewSession, loadMessagesFromSession]);
 
   // 处理消息点击
   const handleMessageClick = (index: number) => {
