@@ -5,10 +5,10 @@ import {
   LinkOutlined,
   PlusOutlined,
   ReadOutlined,
-  ToolOutlined
+  ToolOutlined,
 } from '@ant-design/icons';
 import { Attachments } from '@ant-design/x';
-import { Button, Flex, message, Select, Space } from 'antd';
+import { Button, Flex, message, Select, Space, Tooltip } from 'antd';
 import { useEffect } from 'react';
 import { useProviders } from '../../../stores/configStore';
 import SessionDrawer from './SessionDrawer';
@@ -77,20 +77,33 @@ export default function ChatInputHeader() {
               message.info(`Mock upload: ${file.name}`);
             }}
           >
-            <Button type="text" icon={<LinkOutlined />} />
+            <Tooltip title="上传文件">
+              <Button type="text" icon={<LinkOutlined />} />
+            </Tooltip>
           </Attachments>
-          <Button type="text" icon={<ReadOutlined />} />
+          <Tooltip title="阅读页面">
+            <Button type="text" icon={<ReadOutlined />} />
+          </Tooltip>
         </Space>
       </Space>
       <Space size={0}>
-        <Button type="text" icon={<ToolOutlined />} />
-        <Button type="text" icon={<HistoryOutlined />} onClick={() => setShowSessionDrawer(true)} />
-        <Button
-          type="text"
-          icon={<PlusOutlined />}
-          onClick={handleNewSession}
-          title="新建会话"
-        />
+        <Tooltip title="设置">
+          <Button type="text" icon={<ToolOutlined />} />
+        </Tooltip>
+        <Tooltip title="历史会话">
+          <Button
+            type="text"
+            icon={<HistoryOutlined />}
+            onClick={() => setShowSessionDrawer(true)}
+          />
+        </Tooltip>
+        <Tooltip title="新会话" placement="topLeft">
+          <Button
+            type="text"
+            icon={<PlusOutlined />}
+            onClick={handleNewSession}
+          />
+        </Tooltip>
       </Space>
       <SessionDrawer />
     </Flex>
