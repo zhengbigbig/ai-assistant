@@ -980,7 +980,7 @@ const TranslationSettings: React.FC = () => {
                     fontWeight: 400,
                   }}
                 >
-                  在任何网页的输入框中翻译并替换文本
+                  在任何网页的输入框中空格三连翻译并替换文本1
                 </Text>
               </Label>
               <Form.Item

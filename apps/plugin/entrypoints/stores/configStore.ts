@@ -877,6 +877,7 @@ export const useTranslationProviders = () =>
   useConfigStore((state) => state.translationProviders);
 export const useSelectedProvider = () =>
   useConfigStore((state) => state.selectedProvider);
+
 export const useAppearance = () => useConfigStore((state) => state.appearance);
 export const useVoice = () => useConfigStore((state) => state.voice);
 export const useSidebar = () => useConfigStore((state) => state.sidebar);
