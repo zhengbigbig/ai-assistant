@@ -513,31 +513,6 @@ const TranslationSettings: React.FC = () => {
     });
   };
 
-  // 处理重置样式
-  const handleResetAllStyles = () => {
-    modal.confirm({
-      title: '确认重置样式',
-      content: '将重置所有样式',
-      onOk: () => {
-        const { resetAllCustomStyles, updateTranslation } = useConfigStore.getState();
-
-        // 重置所有样式
-        resetAllCustomStyles();
-
-        // 更新为默认样式
-        updateTranslation({ displayStyle: 'underline' });
-
-        // 清除自定义样式
-        const styleElement = document.querySelector(`[data-main-id="${CUSTOM_STYLE_ELEMENT_ID}"]`);
-        if (styleElement) {
-          styleElement.remove();
-        }
-
-        messageApi.success('样式已重置');
-      },
-    });
-  };
-
   return (
     <>
       <Form

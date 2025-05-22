@@ -1,30 +1,27 @@
-import { create } from 'zustand';
-import { persist, PersistOptions } from 'zustand/middleware';
 import { produce } from 'immer';
-import syncStorageAdapter from './storage';
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import {
-  TargetLanguage,
-  DisplayMode,
-  TranslationHotkey,
   DEFAULT_CUSTOM_STYLE_TEMPLATES,
   DEFAULT_OPENAI_MODEL_PROVIDER_CONFIG,
   DEFAULT_TRANSLATION_PROVIDERS,
+  DisplayMode,
+  TargetLanguage,
+  TranslationHotkey,
 } from '../../constants/config';
-import { CONFIG_STORAGE_KEY, FREE_OPENAI_API_KEY } from '../../constants/key';
+import { CONFIG_STORAGE_KEY } from '../../constants/key';
+import syncStorageAdapter from './storage';
 
 // 定义模型类型接口
 export interface ModelType {
-  id: string;
   name: string;
-  value: string;
-  description?: string;
   enabled?: boolean;
 }
 
 // 服务提供商接口
 export interface ProviderType {
-  id: string;
   name: string;
+  logo?: string;
   apiKey: string;
   baseUrl: string;
   models: ModelType[];
@@ -152,7 +149,6 @@ export interface AccountInfo {
 export interface ConfigState {
   // AI 提供商相关
   providers: ProviderType[];
-  selectedProvider: string | null;
 
   // 翻译服务提供商
   translationProviders: TranslationProviderType[];
@@ -188,21 +184,6 @@ export interface ConfigState {
   addProvider: (provider: ProviderType) => void;
   updateProvider: (id: string, updates: Partial<ProviderType>) => void;
   removeProvider: (id: string) => void;
-  setSelectedProvider: (id: string | null) => void;
-
-  // 模型操作
-  addModel: (providerId: string, model: ModelType) => void;
-  updateModel: (
-    providerId: string,
-    modelId: string,
-    updates: Partial<ModelType>
-  ) => void;
-  removeModel: (providerId: string, modelId: string) => void;
-  toggleModelEnabled: (
-    providerId: string,
-    modelId: string,
-    enabled: boolean
-  ) => void;
 
   // 外观设置操作
   updateAppearance: (settings: Partial<AppearanceSettings>) => void;
@@ -267,7 +248,6 @@ export const useConfigStore = create<ConfigState>()(
     (set, get) => ({
       // 初始状态
       providers: [DEFAULT_OPENAI_MODEL_PROVIDER_CONFIG],
-      selectedProvider: DEFAULT_OPENAI_MODEL_PROVIDER_CONFIG.id,
 
       // 翻译服务提供商初始化
       translationProviders: DEFAULT_TRANSLATION_PROVIDERS,
@@ -308,7 +288,7 @@ export const useConfigStore = create<ConfigState>()(
           'codepen.io',
           'codesandbox.io',
           'replit.com',
-          'jsfiddle.net'
+          'jsfiddle.net',
         ],
       },
 
@@ -418,7 +398,7 @@ export const useConfigStore = create<ConfigState>()(
           'codepen.io',
           'codesandbox.io',
           'replit.com',
-          'jsfiddle.net'
+          'jsfiddle.net',
         ],
         alwaysTranslateWebsites: [],
         enableVideoSubtitleTranslation: true,
@@ -461,7 +441,7 @@ export const useConfigStore = create<ConfigState>()(
         set(
           produce((state: ConfigState) => {
             const providerIndex = state.providers.findIndex(
-              (p: ProviderType) => p.id === id
+              (p: ProviderType) => p.name === id
             );
             if (providerIndex !== -1) {
               state.providers[providerIndex] = {
@@ -476,86 +456,8 @@ export const useConfigStore = create<ConfigState>()(
         set(
           produce((state: ConfigState) => {
             state.providers = state.providers.filter(
-              (p: ProviderType) => p.id !== id
+              (p: ProviderType) => p.name !== id
             );
-            if (state.selectedProvider === id) {
-              state.selectedProvider =
-                state.providers.length > 0 ? state.providers[0].id : null;
-            }
-          })
-        ),
-
-      setSelectedProvider: (id: string | null) => set({ selectedProvider: id }),
-
-      // 模型操作
-      addModel: (providerId: string, model: ModelType) =>
-        set(
-          produce((state: ConfigState) => {
-            const provider = state.providers.find(
-              (p: ProviderType) => p.id === providerId
-            );
-            if (provider) {
-              provider.models.push(model);
-            }
-          })
-        ),
-
-      updateModel: (
-        providerId: string,
-        modelId: string,
-        updates: Partial<ModelType>
-      ) =>
-        set(
-          produce((state: ConfigState) => {
-            const provider = state.providers.find(
-              (p: ProviderType) => p.id === providerId
-            );
-            if (provider) {
-              const modelIndex = provider.models.findIndex(
-                (m: ModelType) => m.id === modelId
-              );
-              if (modelIndex !== -1) {
-                provider.models[modelIndex] = {
-                  ...provider.models[modelIndex],
-                  ...updates,
-                };
-              }
-            }
-          })
-        ),
-
-      removeModel: (providerId: string, modelId: string) =>
-        set(
-          produce((state: ConfigState) => {
-            const provider = state.providers.find(
-              (p: ProviderType) => p.id === providerId
-            );
-            if (provider) {
-              provider.models = provider.models.filter(
-                (m: ModelType) => m.id !== modelId
-              );
-            }
-          })
-        ),
-
-      toggleModelEnabled: (
-        providerId: string,
-        modelId: string,
-        enabled: boolean
-      ) =>
-        set(
-          produce((state: ConfigState) => {
-            const provider = state.providers.find(
-              (p: ProviderType) => p.id === providerId
-            );
-            if (provider) {
-              const model = provider.models.find(
-                (m: ModelType) => m.id === modelId
-              );
-              if (model) {
-                model.enabled = enabled;
-              }
-            }
           })
         ),
 
@@ -607,20 +509,24 @@ export const useConfigStore = create<ConfigState>()(
       updateKeyboardShortcuts: (settings: Partial<KeyboardShortcutsSettings>) =>
         set(
           produce((state: ConfigState) => {
-            const oldShortcutTranslatePage = state.keyboardShortcuts.shortcutTranslatePage;
+            const oldShortcutTranslatePage =
+              state.keyboardShortcuts.shortcutTranslatePage;
             state.keyboardShortcuts = {
               ...state.keyboardShortcuts,
               ...settings,
             };
 
             // 检查翻译页面快捷键是否发生变化
-            if (settings.shortcutTranslatePage && settings.shortcutTranslatePage !== oldShortcutTranslatePage) {
+            if (
+              settings.shortcutTranslatePage &&
+              settings.shortcutTranslatePage !== oldShortcutTranslatePage
+            ) {
               try {
                 // 通知背景脚本更新菜单
                 chrome.runtime.sendMessage({
                   action: 'configChanged',
                   change: 'shortcutTranslatePage',
-                  value: settings.shortcutTranslatePage
+                  value: settings.shortcutTranslatePage,
                 });
               } catch (e) {
                 console.error('通知背景脚本更新菜单失败:', e);
@@ -704,13 +610,16 @@ export const useConfigStore = create<ConfigState>()(
             };
 
             // 检查目标语言是否发生变化
-            if (settings.targetLanguage && settings.targetLanguage !== oldTargetLanguage) {
+            if (
+              settings.targetLanguage &&
+              settings.targetLanguage !== oldTargetLanguage
+            ) {
               try {
                 // 通知背景脚本更新菜单
                 chrome.runtime.sendMessage({
                   action: 'configChanged',
                   change: 'targetLanguage',
-                  value: settings.targetLanguage
+                  value: settings.targetLanguage,
                 });
               } catch (e) {
                 console.error('通知背景脚本更新菜单失败:', e);
@@ -840,7 +749,10 @@ export const useConfigStore = create<ConfigState>()(
           })
         ),
 
-      updateTranslationProvider: (id: string, updates: Partial<TranslationProviderType>) =>
+      updateTranslationProvider: (
+        id: string,
+        updates: Partial<TranslationProviderType>
+      ) =>
         set(
           produce((state: ConfigState) => {
             const providerIndex = state.translationProviders.findIndex(
@@ -875,8 +787,6 @@ export const useConfigStore = create<ConfigState>()(
 export const useProviders = () => useConfigStore((state) => state.providers);
 export const useTranslationProviders = () =>
   useConfigStore((state) => state.translationProviders);
-export const useSelectedProvider = () =>
-  useConfigStore((state) => state.selectedProvider);
 
 export const useAppearance = () => useConfigStore((state) => state.appearance);
 export const useVoice = () => useConfigStore((state) => state.voice);
@@ -891,15 +801,3 @@ export const useTranslation = () =>
 export const useWebHelper = () => useConfigStore((state) => state.webHelper);
 export const useKeyboardShortcuts = () =>
   useConfigStore((state) => state.keyboardShortcuts);
-
-// 根据当前选择的提供商获取可用模型
-export const useAvailableModels = () => {
-  const providers = useConfigStore((state) => state.providers);
-  const selectedProviderId = useConfigStore((state) => state.selectedProvider);
-
-  const selectedProvider = providers.find((p) => p.id === selectedProviderId);
-  if (selectedProvider) {
-    return selectedProvider.models.filter((model) => model.enabled !== false);
-  }
-  return [];
-};

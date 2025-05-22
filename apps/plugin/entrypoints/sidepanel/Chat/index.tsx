@@ -4,15 +4,16 @@ import {
   LikeOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
-import { Bubble, Prompts, Welcome } from '@ant-design/x';
-import { Button, Space, Spin } from 'antd';
+import { Bubble, BubbleProps, Prompts, Welcome } from '@ant-design/x';
+import { Button, Space, Spin, Typography } from 'antd';
 import { createStyles } from 'antd-style';
 import React from 'react';
-import {
-  useChatStore,
-  useMessages
-} from '../../stores/chatStore';
+import { useChatStore, useMessages } from '../../stores/chatStore';
 import ChatInput from './ChatInput';
+import markdownit from 'markdown-it';
+import ChatInputHeader from './ChatInputHeader';
+
+const md = markdownit({ html: true, breaks: true });
 
 // 定义聊天组件Props
 interface ChatProps {
@@ -20,6 +21,16 @@ interface ChatProps {
 }
 
 const AGENT_PLACEHOLDER = '生成内容中，请稍候...';
+
+const renderMarkdown: BubbleProps['messageRender'] = (content) => {
+  console.log('content', content);
+  return (
+    <Typography>
+      {/* biome-ignore lint/security/noDangerouslySetInnerHtml: used in demo */}
+      <div dangerouslySetInnerHTML={{ __html: md.render(content) }} />
+    </Typography>
+  );
+};
 
 const useStyles = createStyles(({ token, css }) => {
   return {
@@ -64,12 +75,8 @@ const Chat: React.FC<ChatProps> = ({ suggestedPrompts = [] }) => {
   const { styles } = useStyles();
   const messages = useMessages();
 
-  const {
-    setSelectedMessageIndex,
-    chatOpenAI,
-    retryChatOpenAI,
-    copyMessage,
-  } = useChatStore();
+  const { setSelectedMessageIndex, chatOpenAI, retryChatOpenAI, copyMessage } =
+    useChatStore();
 
   // 处理消息点击
   const handleMessageClick = (index: number) => {
@@ -116,6 +123,7 @@ const Chat: React.FC<ChatProps> = ({ suggestedPrompts = [] }) => {
                 msg.status === 'loading'
                   ? { step: 5, interval: 20, suffix: <>💗</> }
                   : false,
+              messageRender: renderMarkdown,
             }))}
             roles={{
               assistant: {
@@ -161,6 +169,7 @@ const Chat: React.FC<ChatProps> = ({ suggestedPrompts = [] }) => {
 
       {/* 底部输入区域 */}
       <div className={styles.inputArea}>
+        <ChatInputHeader />
         <ChatInput />
       </div>
     </>

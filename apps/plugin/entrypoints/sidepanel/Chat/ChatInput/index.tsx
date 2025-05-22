@@ -2,25 +2,31 @@ import { useChatLoading, useChatStore } from '@/entrypoints/stores/chatStore';
 import {
   BulbOutlined,
   CloseCircleFilled,
-  CloseOutlined,
   CloudUploadOutlined,
   SearchOutlined,
-  SendOutlined,
+  SendOutlined
 } from '@ant-design/icons';
-import { Attachments, Sender } from '@ant-design/x';
+import { Attachments, Sender as AntXSender } from '@ant-design/x';
 import {
-  Button,
+  Tag as AntTag,
   ButtonProps,
+  Divider,
   Flex,
   GetRef,
-  Tag as AntTag,
   theme,
-  Tooltip,
-  Divider,
-  ConfigProvider,
+  Tooltip
 } from 'antd';
 import React from 'react';
 import styled from 'styled-components';
+
+const Sender = styled(AntXSender)`
+  .ant-sender-content {
+    padding: 6px;
+  }
+  .ant-sender-footer {
+    padding: 4px 0;
+  }
+`
 
 const btnProps: ButtonProps = {
   variant: 'text',
@@ -68,7 +74,6 @@ const ChatInput = () => {
   const senderRef = React.useRef<GetRef<typeof Sender>>(null);
   const loading = useChatLoading();
   const {
-    setLoading,
     chatOpenAI,
     abortRequest,
     setAttachments,
@@ -81,11 +86,6 @@ const ChatInput = () => {
   const plugins = useChatStore((state) => state.plugins);
   const selectedText = useChatStore((state) => state.selectedText);
   const { token } = theme.useToken();
-
-  const iconStyle = {
-    fontSize: 18,
-    color: token.colorText,
-  };
 
   return (
     <Sender
@@ -178,8 +178,8 @@ const ChatInput = () => {
                 搜索
               </Tag>
             </Flex>
-            <Flex align="center">
-              <SpeechButton style={iconStyle} />
+            <Flex align="center" gap={2}>
+              <SpeechButton />
               {loading ? (
                 <Tooltip title="Click to cancel">
                   <LoadingButton onClick={abortRequest} type="default" />
@@ -193,7 +193,6 @@ const ChatInput = () => {
                     {...btnProps}
                     onClick={() => {
                       chatOpenAI(inputValue);
-                      setLoading(true);
                     }}
                   />
                 </Tooltip>
@@ -204,6 +203,14 @@ const ChatInput = () => {
       }}
       allowSpeech
       actions={false}
+      submitType="enter"
+      onSubmit={() => {
+        console.log('inputValue', inputValue);
+        if (inputValue?.trim() === '') {
+          return;
+        }
+        chatOpenAI(inputValue);
+      }}
     />
   );
 };

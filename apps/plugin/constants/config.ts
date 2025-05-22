@@ -60,7 +60,7 @@ export const AI_ASSISTANT_TRANSLATED = 'ai-assistant-translated';
 // 自定义样式元素ID
 export const CUSTOM_STYLE_ELEMENT_ID = 'ai-assistant-translated-custom-style';
 // 自定义loading注入样式
-export const CUSTOM_LOADING_INJECT_STYLE = 'ai-assistant-loading-icon-style'
+export const CUSTOM_LOADING_INJECT_STYLE = 'ai-assistant-loading-icon-style';
 
 // 添加预定义的自定义样式模板
 export const DEFAULT_CUSTOM_STYLE_TEMPLATES: CustomStyleConfig[] = [
@@ -206,21 +206,18 @@ export const DEFAULT_EMPTY_TEMPLATE = `
       `.trim();
 
 // 默认openai模型
-export const DEFAULT_OPENAI_MODEL_PROVIDER_CONFIG =         {
-  id: 'deepseek',
+export const DEFAULT_OPENAI_MODEL_PROVIDER_CONFIG = {
   name: 'DeepSeek',
   apiKey: FREE_OPENAI_API_KEY,
+  logo: 'https://deepseek-ai.com/assets/logo.png',
   baseUrl: 'https://openrouter.ai/api/v1',
   models: [
     {
-      id: 'deepseek-chat',
-      name: 'DeepSeek Chat',
-      value: 'deepseek/deepseek-chat-v3-0324:free',
-      description: '免费版本',
-      enabled: true
-    }
+      name: 'deepseek/deepseek-chat-v3-0324:free',
+      enabled: true,
+    },
   ],
-}
+};
 
 // 默认翻译服务提供商
 export const DEFAULT_TRANSLATION_PROVIDERS = [
@@ -228,7 +225,8 @@ export const DEFAULT_TRANSLATION_PROVIDERS = [
     id: 'google',
     name: '谷歌翻译',
     apiKey: '',
-    baseUrl: 'https://translate.googleapis.com/translate_a/t?anno=3&client=te&v=1.0&format=html',
+    baseUrl:
+      'https://translate.googleapis.com/translate_a/t?anno=3&client=te&v=1.0&format=html',
     isBuiltIn: true,
   },
   {
@@ -249,7 +247,8 @@ export const DEFAULT_TRANSLATION_PROVIDERS = [
     id: 'yandex',
     name: 'Yandex翻译',
     apiKey: '',
-    baseUrl: 'https://translate.yandex.net/api/v1/tr.json/translate?srv=tr-url-widget',
+    baseUrl:
+      'https://translate.yandex.net/api/v1/tr.json/translate?srv=tr-url-widget',
     isBuiltIn: true,
   },
   {
@@ -259,5 +258,5 @@ export const DEFAULT_TRANSLATION_PROVIDERS = [
     baseUrl: 'https://openrouter.ai/api/v1',
     isBuiltIn: false,
     model: 'deepseek/deepseek-chat-v3-0324:free',
-  }
+  },
 ];

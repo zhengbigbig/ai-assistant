@@ -12,14 +12,15 @@ const root = createRoot(document.getElementById('root')!);
 root.render(
   <React.StrictMode>
     <ConfigProvider
-      locale={zhCN}
       theme={{
         algorithm: theme.defaultAlgorithm,
         token: {
           colorPrimary: '#6e59f2',
           borderRadius: 8,
+          fontSize: 12,
         },
       }}
+      componentSize="small"
     >
       <AntdApp>
         <App />
